@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
+import logger from "../lib/logger.js";
+import { config } from "../config.js";
 
 export class HttpError extends Error {
   statusCode: number;
@@ -14,24 +16,48 @@ export class HttpError extends Error {
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ) {
+  const statusCode = err instanceof HttpError ? err.statusCode : 500;
+  const requestId = (req as Request & { requestId?: string }).requestId;
+
   if (err instanceof ZodError) {
-    return res.status(400).json({
-      message: "Validation error",
+    logger.warn({
+      message: "validation_error",
       issues: err.issues,
+      requestId,
+    });
+    return res.status(400).json({
+      error: "Validation error",
+      code: 400,
+      issues: err.issues,
+      requestId,
     });
   }
 
   if (err instanceof HttpError) {
-    return res.status(err.statusCode).json({
+    logger.error({
       message: err.message,
       details: err.details,
+      requestId,
+    });
+    return res.status(err.statusCode).json({
+      error: err.message,
+      code: err.statusCode,
+      details: err.details,
+      requestId,
     });
   }
 
-  console.error(err);
-  return res.status(500).json({ message: "Internal server error" });
+  logger.error({ message: "unhandled_error", error: err, requestId });
+  return res.status(statusCode).json({
+    error: "Internal server error",
+    code: statusCode,
+    requestId,
+    ...(config.NODE_ENV !== "production" && err instanceof Error
+      ? { stack: err.stack }
+      : {}),
+  });
 }

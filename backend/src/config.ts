@@ -9,6 +9,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
   PORT: z.coerce.number().int().positive().default(4000),
   GEMINI_API_KEY: z.string().optional(),
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  LOG_LEVEL: z
+    .enum(["error", "warn", "info", "debug"])
+    .default(process.env.NODE_ENV === "production" ? "info" : "debug"),
 });
 
 const parsed = envSchema.safeParse(process.env);
