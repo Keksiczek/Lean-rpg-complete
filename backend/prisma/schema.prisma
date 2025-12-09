@@ -49,6 +49,9 @@ model Quest {
   description String
   type        String
   baseXp      Int           @default(10)
+  briefText   String?
+  difficulty  String        @default("easy")
+  leanConcept String?
   isActive    Boolean       @default(true)
   briefText   String?
   leanConcept String?
