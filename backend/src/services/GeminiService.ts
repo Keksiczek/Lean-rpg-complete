@@ -7,7 +7,7 @@ import { HttpError } from "../middleware/errors.js";
 export class GeminiService {
   async processSubmission(data: { submissionId: number; requestId?: string }) {
     const { submissionId, requestId } = data;
-    const submission = await (prisma.submission as any).findUnique({
+    const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
         quest: true,
@@ -38,7 +38,7 @@ export class GeminiService {
         riskLevel: analysis.riskLevel,
       });
 
-      await (prisma as any).$transaction(async (tx: any) => {
+      await prisma.$transaction(async (tx) => {
         await tx.submission.update({
           where: { id: submission.id },
           data: {

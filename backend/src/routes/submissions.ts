@@ -29,9 +29,16 @@ router.post(
     try {
       parsedData = submissionSchema.parse(req.body);
     } catch (validationErr) {
-      throw new ValidationError("Invalid submission format", {
-        issues: validationErr,
-      });
+      if (validationErr instanceof z.ZodError) {
+        throw new ValidationError("Invalid submission format", {
+          issues: validationErr.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message,
+          })),
+        });
+      }
+
+      throw validationErr;
     }
 
     const { questId, content } = parsedData;
@@ -49,7 +56,7 @@ router.post(
       );
     }
 
-    const submission = await (prisma.submission as any).create({
+    const submission = await prisma.submission.create({
       data: {
         questId,
         content,
@@ -97,7 +104,7 @@ router.get(
       });
     }
 
-    const submission = await (prisma.submission as any).findUnique({
+    const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
         quest: true,

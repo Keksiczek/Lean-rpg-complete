@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import winston from "winston";
 import { fileURLToPath } from "url";
+import { config } from "../config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const logsDir = path.join(__dirname, "../../logs");
@@ -26,7 +27,7 @@ winston.addColors(logColors);
 
 const logger = winston.createLogger({
   levels: logLevels,
-  level: process.env.LOG_LEVEL || "info",
+  level: config.logging.level,
   format: winston.format.combine(
     winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
     winston.format.errors({ stack: true }),
@@ -49,7 +50,7 @@ const logger = winston.createLogger({
   ],
 });
 
-if (process.env.NODE_ENV !== "production") {
+if (config.env !== "production") {
   logger.add(
     new winston.transports.Console({
       format: winston.format.combine(
