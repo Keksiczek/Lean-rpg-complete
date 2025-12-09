@@ -21,6 +21,7 @@ model User {
   xpLogs     XpLog[]
   userSkills UserSkill[]
   audits     Audit[]
+  submissions Submission[]
 }
 
 model Area {
@@ -52,10 +53,13 @@ model Quest {
   difficulty  String        @default("easy")
   leanConcept String?
   isActive    Boolean       @default(true)
+  briefText   String?
+  leanConcept String?
   areaId      Int?
   area        Area?         @relation(fields: [areaId], references: [id])
   userQuests  UserQuest[]
   options     QuestOption[]
+  submissions Submission[]
 }
 
 model UserQuest {
@@ -71,19 +75,24 @@ model UserQuest {
 }
 
 model Submission {
-  id            Int         @id @default(autoincrement())
-  userQuestId   Int
-  workstationId Int
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  questId       Int
+  content       String
+  userQuestId   Int?
+  workstationId Int?
   textInput     String?
   imageUrl      String?
   aiFeedback    String?
   aiScore5s     String?
   aiRiskLevel   String?
   xpGain        Int?
-  status        String      @default("pending_analysis")
-  createdAt     DateTime    @default(now())
-  userQuest     UserQuest   @relation(fields: [userQuestId], references: [id])
-  workstation   Workstation @relation(fields: [workstationId], references: [id])
+  status        String        @default("pending_analysis")
+  createdAt     DateTime      @default(now())
+  user          User          @relation(fields: [userId], references: [id])
+  quest         Quest         @relation(fields: [questId], references: [id])
+  userQuest     UserQuest?    @relation(fields: [userQuestId], references: [id])
+  workstation   Workstation?  @relation(fields: [workstationId], references: [id])
 }
 
 model XpLog {

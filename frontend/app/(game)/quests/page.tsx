@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Quest, fetchQuests } from '@/lib/quests';
-import { QuestCard } from '@/components/game/quest-card';
 import { Loader2 } from 'lucide-react';
+import api from '@/lib/api';
+import { Card } from '@/components/ui/card';
+import { QuestCard } from '@/components/game/quest-card';
+import type { Quest } from '@/types/quest';
 
 export default function QuestsPage() {
   const [quests, setQuests] = useState<Quest[]>([]);
@@ -11,72 +13,44 @@ export default function QuestsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadQuests = async () => {
+    const fetchQuests = async () => {
       try {
-        setLoading(true);
-        const data = await fetchQuests();
-        setQuests(data);
+        const response = await api.get('/api/quests');
+        setQuests(response.data as Quest[]);
       } catch (err) {
-        console.error('Failed to load quests:', err);
-        setError('Nepodařilo se načíst questy. Zkuste to později.');
+        console.error('Unable to load quests', err);
+        setError('Nepodařilo se načíst úkoly.');
       } finally {
         setLoading(false);
       }
     };
 
-    loadQuests();
+    fetchQuests();
   }, []);
 
-  const handleStartQuest = (questId: number) => {
-    console.log(`Starting quest ${questId}`);
-    // TODO: Later - navigace na quest detail nebo start dialog
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center gap-2 text-gray-700">
-          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-          <span>Načítám úkoly...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800">
-        <p className="font-medium">{error}</p>
-      </div>
-    );
-  }
-
-  if (quests.length === 0) {
-    return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center text-gray-700">
-        <p>Zatím nejsou k dispozici žádné úkoly.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Úkoly (Questy)</h1>
-        <p className="text-gray-600 mt-1">Vyber si úkol a začni si získávat XP a dovednosti.</p>
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold text-gray-900">Úkoly</h1>
+        <p className="text-sm text-gray-600">Vyberte si quest a začněte sbírat XP.</p>
       </div>
 
-      {/* Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {quests.map((quest) => (
-          <QuestCard
-            key={quest.id}
-            quest={quest}
-            onStart={handleStartQuest}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <div className="flex items-center gap-2 text-gray-600">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Načítám dostupné úkoly...</span>
+        </div>
+      ) : error ? (
+        <Card title="Chyba" description={error} />
+      ) : quests.length === 0 ? (
+        <Card title="Žádné úkoly" description="Momentálně nejsou k dispozici žádné aktivní questy." />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {quests.map((quest) => (
+            <QuestCard key={quest.id} quest={quest} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
