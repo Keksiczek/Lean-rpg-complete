@@ -27,6 +27,12 @@ Node.js + TypeScript backend for the Lean RPG Training App. Uses Express, Prisma
 
 Environment variables are listed in `.env.example`. Copy it to `.env` and adjust as needed.
 
+## Environment variables (Phase 1)
+- `DATABASE_URL` – SQLite connection string for local development (defaults to `file:./dev.db`).
+- `JWT_SECRET` – Secret used to sign and verify JWT tokens.
+- `PORT` – Port for the Express server (defaults to `4000`).
+- `GEMINI_API_KEY` – Placeholder for later Gemini integration; optional for this phase.
+
 ## Project Structure
 - `src/index.ts` – Express server entrypoint with routes and middleware wiring.
 - `src/routes/` – Route handlers for auth, users, quests, submissions, and areas.
@@ -49,9 +55,11 @@ Environment variables are listed in `.env.example`. Copy it to `.env` and adjust
 
 ## API Endpoints (overview)
 - `GET /health` – Health check.
-- `POST /auth/signup` – Create user and return JWT (rate limited).
+- `POST /auth/register` – Create user and return JWT (rate limited).
 - `POST /auth/login` – Login and return JWT (rate limited).
-- `GET /users/me` – Get current user profile with `levelInfo` (requires auth).
+- `GET /auth/me` – Returns the current authenticated user (requires auth).
+- `GET /users/me` – Get current user profile (requires auth).
+- `PUT /users/me` – Update basic profile fields (requires auth).
 - `GET /areas` – List areas (requires auth).
 - `POST /areas` – Create area (admin only; requires auth).
 - `GET /quests` – List active quests (requires auth).
@@ -59,6 +67,24 @@ Environment variables are listed in `.env.example`. Copy it to `.env` and adjust
 - `GET /quests/my` – List current user's quests with submissions (requires auth).
 - `POST /submissions` – Create submission, triggers AI feedback + XP processing (requires auth).
 - `GET /submissions/:id` – Detailed submission view with quest/workstation context and XP info (requires auth + owner/admin/ci).
+
+### Auth endpoints
+- `POST /auth/register`
+  - Body: `{ "email": string, "password": string (min 8 chars), "name": string }`
+  - Response: `{ user: { id, email, name, role, totalXp, level, createdAt }, token }`
+- `POST /auth/login`
+  - Body: `{ "email": string, "password": string }`
+  - Response: `{ user: { id, email, name, role, totalXp, level, createdAt }, token }`
+- `GET /auth/me`
+  - Header: `Authorization: Bearer <JWT>`
+  - Response: `{ user: { id, email, name, role, totalXp, level, createdAt } }`
+- `GET /users/me`
+  - Header: `Authorization: Bearer <JWT>`
+  - Response: `{ id, email, name, role, totalXp, level, createdAt, updatedAt }`
+- `PUT /users/me`
+  - Header: `Authorization: Bearer <JWT>`
+  - Body: `{ "name"?: string }`
+  - Response: Updated user profile without password fields.
 
 ## Endpoint examples
 ### POST /submissions
@@ -84,12 +110,9 @@ Example response shape:
   "name": "Operator",
   "role": "operator",
   "totalXp": 180,
-  "levelInfo": {
-    "level": 1,
-    "currentLevelXp": 100,
-    "nextLevelXp": 400,
-    "xpToNextLevel": 220
-  }
+  "level": 1,
+  "createdAt": "2024-07-11T10:20:30.000Z",
+  "updatedAt": "2024-07-11T10:20:30.000Z"
 }
 ```
 

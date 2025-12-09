@@ -34,7 +34,7 @@ router.post(
     where: { id: userQuestId },
     include: { quest: true },
   });
-  if (!userQuest || userQuest.userId !== req.user.id) {
+  if (!userQuest || userQuest.userId !== req.user.userId) {
     return res.status(403).json({ message: "Not allowed to submit for this quest" });
   }
 
@@ -88,7 +88,7 @@ router.post(
 
     await tx.xpLog.create({
       data: {
-        userId: req.user.id,
+        userId: req.user.userId,
         source: "submission",
         xpChange: xpGain,
         note: `Quest ${userQuest.quest.title} submission evaluated`,
@@ -96,7 +96,7 @@ router.post(
     });
 
     await tx.user.update({
-      where: { id: req.user.id },
+      where: { id: req.user.userId },
       data: { totalXp: { increment: xpGain } },
     });
 
@@ -131,7 +131,7 @@ router.get(
     return res.status(404).json({ message: "Submission not found" });
   }
 
-  const isOwner = submission.userQuest.userId === req.user.id;
+  const isOwner = submission.userQuest.userId === req.user.userId;
   const isElevated = req.user.role === "admin" || req.user.role === "ci";
 
   if (!isOwner && !isElevated) {
