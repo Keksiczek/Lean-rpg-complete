@@ -60,4 +60,23 @@ router.get(
   })
 );
 
+router.get(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    const questId = Number(req.params.id);
+
+    if (Number.isNaN(questId)) {
+      return res.status(400).json({ message: "Invalid quest id" });
+    }
+
+    const quest = await prisma.quest.findUnique({ where: { id: questId } });
+
+    if (!quest || !quest.isActive) {
+      return res.status(404).json({ message: "Quest not found" });
+    }
+
+    return res.json(quest);
+  })
+);
+
 export default router;

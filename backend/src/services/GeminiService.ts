@@ -19,6 +19,10 @@ export class GeminiService {
       throw new HttpError("Submission not found", 404);
     }
 
+    if (!submission.userQuest || !submission.workstation) {
+      throw new HttpError("Submission missing context for analysis", 400);
+    }
+
     const areaContext =
       submission.workstation.area?.knowledgePacks?.[0]?.content ?? null;
 
@@ -49,7 +53,7 @@ export class GeminiService {
         });
 
         await tx.userQuest.update({
-          where: { id: submission.userQuestId },
+          where: { id: submission.userQuest.id },
           data: { status: "evaluated" },
         });
 

@@ -3,18 +3,12 @@ import { z } from "zod";
 import prisma from "../lib/prisma.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { HttpError } from "../middleware/errorHandler.js";
-import {
-  enqueueGeminiAnalysisJob,
-  getGeminiQueue,
-} from "../queue/geminiJobs.js";
 
 const router = Router();
 
 const submissionSchema = z.object({
-  userQuestId: z.coerce.number().int(),
-  workstationId: z.coerce.number().int(),
-  textInput: z.string().max(2000).optional().nullable(),
-  imageUrl: z.string().url().max(2000).optional().nullable(),
+  questId: z.coerce.number().int(),
+  content: z.string().min(1).max(5000),
 });
 
 router.post(
@@ -24,46 +18,26 @@ router.post(
       throw new HttpError("Unauthorized", 401);
     }
 
-    const { userQuestId, workstationId, textInput = null, imageUrl = null } =
-      submissionSchema.parse(req.body);
+    const { questId, content } = submissionSchema.parse(req.body);
 
-    const userQuest = await prisma.userQuest.findUnique({
-      where: { id: userQuestId },
-      include: { quest: true },
-    });
-    if (!userQuest || userQuest.userId !== req.user.userId) {
-      throw new HttpError("Not allowed to submit for this quest", 403);
-    }
+    const quest = await prisma.quest.findUnique({ where: { id: questId } });
 
-    const workstation = await prisma.workstation.findUnique({
-      where: { id: workstationId },
-      include: { area: { include: { knowledgePacks: true } } },
-    });
-
-    if (!workstation) {
-      throw new HttpError("Workstation not found", 404);
+    if (!quest || !quest.isActive) {
+      throw new HttpError("Quest not found", 404);
     }
 
     const submission = await prisma.submission.create({
       data: {
-        userQuestId,
-        workstationId,
-        textInput,
-        imageUrl,
-        status: "pending_analysis",
+        questId,
+        content,
+        userId: req.user.userId,
+        status: "submitted",
       },
     });
 
-    const job = await enqueueGeminiAnalysisJob({
+    return res.status(201).json({
+      success: true,
       submissionId: submission.id,
-      requestId: req.requestId,
-    });
-
-    return res.status(202).json({
-      ...submission,
-      status: submission.status,
-      jobId: job.id,
-      pollUrl: `/submissions/${submission.id}`,
     });
   })
 );
@@ -83,6 +57,8 @@ router.get(
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
+        quest: true,
+        user: true,
         userQuest: { include: { quest: true, user: true } },
         workstation: { include: { area: true } },
       },
@@ -92,40 +68,14 @@ router.get(
       throw new HttpError("Submission not found", 404);
     }
 
-    const isOwner = submission.userQuest.userId === req.user.userId;
+    const isOwner = submission.userId === req.user.userId;
     const isElevated = req.user.role === "admin" || req.user.role === "ci";
 
     if (!isOwner && !isElevated) {
       throw new HttpError("Forbidden", 403);
     }
 
-    let xpGain = submission.xpGain ?? null;
-
-    if (xpGain === null) {
-      const relatedLog = await prisma.xpLog.findFirst({
-        where: {
-          userId: submission.userQuest.userId,
-          source: "submission",
-          createdAt: submission.createdAt,
-        },
-      });
-      xpGain = relatedLog?.xpChange ?? null;
-    }
-
-    if (submission.status === "pending_analysis") {
-      const queuePosition = await getGeminiQueue().getWaitingCount();
-      return res.json({
-        ...submission,
-        xpGain,
-        status: submission.status,
-        queuePosition,
-      });
-    }
-
-    return res.json({
-      ...submission,
-      xpGain,
-    });
+    return res.json(submission);
   })
 );
 
