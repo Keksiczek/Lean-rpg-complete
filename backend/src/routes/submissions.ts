@@ -3,6 +3,7 @@ import { z } from "zod";
 import prisma from "../lib/prisma.js";
 import { analyzeSubmissionWithGemini } from "../lib/gemini.js";
 import { calculateXpGainForSubmission } from "../lib/xp.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
 
@@ -13,7 +14,9 @@ const submissionSchema = z.object({
   imageUrl: z.string().url().max(2000).optional().nullable(),
 });
 
-router.post("/", async (req: Request, res: Response) => {
+router.post(
+  "/",
+  asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
@@ -55,60 +58,58 @@ router.post("/", async (req: Request, res: Response) => {
     },
   });
 
-  try {
-    const analysis = await analyzeSubmissionWithGemini({
-      textInput,
-      imageUrl,
-      areaContext,
+  const analysis = await analyzeSubmissionWithGemini({
+    textInput,
+    imageUrl,
+    areaContext,
+  });
+
+  const xpGain = calculateXpGainForSubmission({
+    baseXp: userQuest.quest.baseXp,
+    score5s: analysis.score5s,
+    riskLevel: analysis.riskLevel,
+  });
+
+  const updatedSubmission = await prisma.$transaction(async (tx) => {
+    const submissionWithAi = await tx.submission.update({
+      where: { id: submission.id },
+      data: {
+        aiFeedback: analysis.feedback,
+        aiScore5s: analysis.score5s,
+        aiRiskLevel: analysis.riskLevel,
+        xpGain,
+      },
     });
 
-    const xpGain = calculateXpGainForSubmission({
-      baseXp: userQuest.quest.baseXp,
-      score5s: analysis.score5s,
-      riskLevel: analysis.riskLevel,
+    await tx.userQuest.update({
+      where: { id: userQuestId },
+      data: { status: "evaluated" },
     });
 
-    const updatedSubmission = await prisma.$transaction(async (tx) => {
-      const submissionWithAi = await tx.submission.update({
-        where: { id: submission.id },
-        data: {
-          aiFeedback: analysis.feedback,
-          aiScore5s: analysis.score5s,
-          aiRiskLevel: analysis.riskLevel,
-          xpGain,
-        },
-      });
-
-      await tx.userQuest.update({
-        where: { id: userQuestId },
-        data: { status: "evaluated" },
-      });
-
-      await tx.xpLog.create({
-        data: {
-          userId: req.user.id,
-          source: "submission",
-          xpChange: xpGain,
-          note: `Quest ${userQuest.quest.title} submission evaluated`,
-        },
-      });
-
-      await tx.user.update({
-        where: { id: req.user.id },
-        data: { totalXp: { increment: xpGain } },
-      });
-
-      return submissionWithAi;
+    await tx.xpLog.create({
+      data: {
+        userId: req.user.id,
+        source: "submission",
+        xpChange: xpGain,
+        note: `Quest ${userQuest.quest.title} submission evaluated`,
+      },
     });
 
-    return res.status(201).json(updatedSubmission);
-  } catch (error) {
-    console.error("Gemini evaluation failed", error);
-    return res.status(500).json({ message: "Failed to evaluate submission" });
-  }
-});
+    await tx.user.update({
+      where: { id: req.user.id },
+      data: { totalXp: { increment: xpGain } },
+    });
 
-router.get("/:id", async (req: Request, res: Response) => {
+    return submissionWithAi;
+  });
+
+  return res.status(201).json(updatedSubmission);
+  })
+);
+
+router.get(
+  "/:id",
+  asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
@@ -154,6 +155,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     ...submission,
     xpGain,
   });
-});
+  })
+);
 
 export default router;

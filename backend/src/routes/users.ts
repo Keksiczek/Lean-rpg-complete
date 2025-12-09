@@ -1,10 +1,13 @@
 import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma.js";
 import { calculateLevel } from "../lib/xp.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
 
-router.get("/me", async (req: Request, res: Response) => {
+router.get(
+  "/me",
+  asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
   }
@@ -24,6 +27,7 @@ router.get("/me", async (req: Request, res: Response) => {
     totalXp: user.totalXp,
     levelInfo,
   });
-});
+  })
+);
 
 export default router;

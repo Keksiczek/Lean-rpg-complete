@@ -1,15 +1,21 @@
 import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
 
-router.get("/", async (_req: Request, res: Response) => {
-  const quests = await prisma.quest.findMany({ where: { isActive: true } });
-  return res.json(quests);
-});
+router.get(
+  "/",
+  asyncHandler(async (_req: Request, res: Response) => {
+    const quests = await prisma.quest.findMany({ where: { isActive: true } });
+    return res.json(quests);
+  })
+);
 
-router.post("/assign", async (req: Request, res: Response) => {
-  const { questId } = req.body as { questId?: number };
+router.post(
+  "/assign",
+  asyncHandler(async (req: Request, res: Response) => {
+    const { questId } = req.body as { questId?: number };
 
   if (!req.user) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -34,20 +40,24 @@ router.post("/assign", async (req: Request, res: Response) => {
   });
 
   return res.status(201).json(userQuest);
-});
+  })
+);
 
-router.get("/my", async (req: Request, res: Response) => {
-  if (!req.user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+router.get(
+  "/my",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-  const myQuests = await prisma.userQuest.findMany({
-    where: { userId: req.user.id },
-    include: { quest: true, submissions: true },
-    orderBy: { assignedAt: "desc" },
-  });
+    const myQuests = await prisma.userQuest.findMany({
+      where: { userId: req.user.id },
+      include: { quest: true, submissions: true },
+      orderBy: { assignedAt: "desc" },
+    });
 
-  return res.json(myQuests);
-});
+    return res.json(myQuests);
+  })
+);
 
 export default router;

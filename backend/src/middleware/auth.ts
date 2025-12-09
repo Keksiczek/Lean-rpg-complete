@@ -1,8 +1,6 @@
-import dotenv from "dotenv";
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-
-dotenv.config();
+import { config } from "../config.js";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -14,7 +12,7 @@ declare module "express-serve-static-core" {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "change_this_in_real_env";
+const JWT_SECRET = config.JWT_SECRET;
 
 export function verifyToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers["authorization"];

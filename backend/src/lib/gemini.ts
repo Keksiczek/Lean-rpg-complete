@@ -1,17 +1,17 @@
-import dotenv from "dotenv";
 import { Gemini5SScore, GeminiSubmissionAnalysis } from "./geminiTypes.js";
 import { buildGeminiPrompt } from "./geminiPrompt.js";
+import { config } from "../config.js";
 
-dotenv.config();
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = config.GEMINI_API_KEY;
 
 export async function analyzeSubmissionWithGemini(input: {
   textInput: string | null;
   imageUrl: string | null;
   areaContext: string | null;
 }): Promise<GeminiSubmissionAnalysis> {
-  if (!GEMINI_API_KEY) {
+  const apiKey = GEMINI_API_KEY;
+
+  if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set");
   }
 
@@ -22,7 +22,7 @@ export async function analyzeSubmissionWithGemini(input: {
   });
 
   // TODO: Replace the placeholder URL with the official Gemini endpoint once available.
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
 
   const response = await fetch(endpoint, {
     method: "POST",

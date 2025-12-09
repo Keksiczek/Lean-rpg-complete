@@ -4,9 +4,11 @@ import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
+import { config } from "../config.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "change_this_in_real_env";
+const JWT_SECRET = config.JWT_SECRET;
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -30,7 +32,10 @@ function generateToken(payload: { userId: number; email: string; role: string })
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-router.post("/signup", limiter, async (req: Request, res: Response) => {
+router.post(
+  "/signup",
+  limiter,
+  asyncHandler(async (req: Request, res: Response) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
@@ -66,9 +71,13 @@ router.post("/signup", limiter, async (req: Request, res: Response) => {
       level: user.level,
     },
   });
-});
+  })
+);
 
-router.post("/login", limiter, async (req: Request, res: Response) => {
+router.post(
+  "/login",
+  limiter,
+  asyncHandler(async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
@@ -99,6 +108,7 @@ router.post("/login", limiter, async (req: Request, res: Response) => {
       level: user.level,
     },
   });
-});
+  })
+);
 
 export default router;
