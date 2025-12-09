@@ -24,7 +24,9 @@ User sees feedback + XP reward
 ## State Machine
 - **Quest**: `active` / `inactive`
 - **UserQuest**: `not_started` → `in_progress` → `evaluated` → `completed` / `abandoned`
-- **Submission**: `submitted` → `pending_analysis` → `evaluated` (with feedback + xpGain)
+- **Submission**: `submitted` → `pending_analysis` → `evaluated` / `failed` (with feedback + xpGain)
+
+`failed` covers Gemini outages or timeouts; frontend shows a friendly message and stops polling after ~30s.
 
 ## Database Relationships
 ```

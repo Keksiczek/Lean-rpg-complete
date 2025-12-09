@@ -73,18 +73,23 @@ export class GeminiService {
       });
     } catch (error) {
       logger.error({
-        message: "gemini_job_processing_failed",
+        message: "Gemini analysis failed",
         submissionId,
         requestId,
-        error,
+        error: error instanceof Error ? error.message : String(error),
       });
+
+      const fallbackFeedback =
+        "AI analýza není momentálně dostupná. " +
+        "Vaše řešení bylo uloženo a bude zpracováno později. " +
+        "Pokud chyba přetrvává, kontaktujte podporu.";
 
       await prisma.submission.update({
         where: { id: submission.id },
         data: {
           status: "failed",
-          aiFeedback:
-            "AI analýza není aktuálně dostupná. Prosím zkuste odevzdání později.",
+          aiFeedback: fallbackFeedback,
+          aiRiskLevel: "error",
         },
       });
     }

@@ -26,9 +26,12 @@ export default function QuestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [userQuest, setUserQuest] = useState<UserQuest | null>(null);
-  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitted' | 'pending' | 'evaluated'>('idle');
+  const [submissionStatus, setSubmissionStatus] = useState<
+    'idle' | 'submitted' | 'pending' | 'evaluated' | 'error'
+  >('idle');
   const [xpGain, setXpGain] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [pollTimer, setPollTimer] = useState<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!questId) return;
@@ -46,6 +49,14 @@ export default function QuestDetailPage() {
 
     fetchQuest();
   }, [questId]);
+
+  useEffect(() => {
+    return () => {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+      }
+    };
+  }, [pollTimer]);
 
   const handleAccept = async () => {
     if (!questId) return;
@@ -67,6 +78,10 @@ export default function QuestDetailPage() {
     setSubmitting(true);
     setError(null);
     setMessage(null);
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      setPollTimer(null);
+    }
 
     try {
       const res = await api.post('/api/submissions', {
@@ -76,20 +91,54 @@ export default function QuestDetailPage() {
       setSubmissionStatus('submitted');
       setMessage('Úkol odeslán ke kontrole!');
       const submissionId = res.data.submissionId;
+      const pollStart = Date.now();
+      const MAX_POLL_TIME_MS = 30_000;
+
       const poll = setInterval(async () => {
-        const statusRes = await api.get(`/api/submissions/${submissionId}`);
-        const data = statusRes.data;
-        if (data.status === 'evaluated') {
-          setSubmissionStatus('evaluated');
-          setXpGain(data.xpGain ?? null);
-          setFeedback(data.aiFeedback ?? null);
-          setMessage(`Hotovo! Získali jste ${data.xpGain ?? 0} XP!`);
-          clearInterval(poll);
-          setTimeout(() => router.push('/dashboard'), 1500);
-        } else {
+        try {
+          const statusRes = await api.get(`/api/submissions/${submissionId}`);
+          const data = statusRes.data;
+
+          if (data.status === 'failed') {
+            setSubmissionStatus('error');
+            setError(
+              data.aiFeedback ||
+                'Analýza se nezdařila. Zkuste prosím později nebo kontaktujte podporu.'
+            );
+            clearInterval(poll);
+            setPollTimer(null);
+            return;
+          }
+
+          if (data.status === 'evaluated') {
+            setSubmissionStatus('evaluated');
+            setXpGain(data.xpGain ?? null);
+            setFeedback(data.aiFeedback ?? null);
+            setMessage(`Hotovo! Získali jste ${data.xpGain ?? 0} XP!`);
+            clearInterval(poll);
+            setPollTimer(null);
+            setTimeout(() => router.push('/dashboard'), 1500);
+            return;
+          }
+
+          const elapsedTime = Date.now() - pollStart;
+          if (elapsedTime > MAX_POLL_TIME_MS) {
+            setSubmissionStatus('error');
+            setError(
+              'Analýza trvá déle než obvykle. Vaše řešení bylo uloženo a bude zpracováno na pozadí. Zkontrolujte prosím výsledek později.'
+            );
+            clearInterval(poll);
+            setPollTimer(null);
+            return;
+          }
+
           setSubmissionStatus('pending');
+        } catch (pollErr) {
+          console.error('Polling error:', pollErr);
         }
       }, 2000);
+
+      setPollTimer(poll);
     } catch (err) {
       console.error('Unable to submit quest', err);
       setError('Nepodařilo se odeslat řešení. Zkuste to prosím znovu.');

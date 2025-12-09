@@ -16,15 +16,38 @@ router.post(
   "/",
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new HttpError("Unauthorized", 401);
+      throw new HttpError(
+        "Authentication required. Please log in to submit solutions.",
+        401
+      );
     }
 
-    const { questId, content } = submissionSchema.parse(req.body);
+    let parsedData;
+    try {
+      parsedData = submissionSchema.parse(req.body);
+    } catch (validationErr) {
+      throw new HttpError(
+        "Invalid submission format. Content must be 1-5000 characters.",
+        400
+      );
+    }
+
+    const { questId, content } = parsedData;
 
     const quest = await prisma.quest.findUnique({ where: { id: questId } });
 
-    if (!quest || !quest.isActive) {
-      throw new HttpError("Quest not found", 404);
+    if (!quest) {
+      throw new HttpError(
+        `Quest #${questId} not found. It may have been archived.`,
+        404
+      );
+    }
+
+    if (!quest.isActive) {
+      throw new HttpError(
+        "This quest is no longer active. Check back later for new challenges!",
+        410
+      );
     }
 
     const submission = await prisma.submission.create({
@@ -36,10 +59,18 @@ router.post(
       },
     });
 
-    const job = await enqueueGeminiAnalysisJob({
-      submissionId: submission.id,
-      requestId: req.requestId,
-    });
+    let job;
+    try {
+      job = await enqueueGeminiAnalysisJob({
+        submissionId: submission.id,
+        requestId: req.requestId,
+      });
+    } catch (queueErr) {
+      throw new HttpError(
+        "Could not queue analysis. Please try again in a moment.",
+        503
+      );
+    }
 
     return res.status(202).json({
       success: true,
@@ -47,6 +78,7 @@ router.post(
       jobId: job.id,
       status: submission.status,
       pollUrl: `/api/submissions/${submission.id}`,
+      message: "Submission received. Analysis will begin shortly.",
     });
   })
 );
@@ -55,12 +87,15 @@ router.get(
   "/:id",
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
-      throw new HttpError("Unauthorized", 401);
+      throw new HttpError("Authentication required", 401);
     }
 
     const submissionId = Number(req.params.id);
     if (Number.isNaN(submissionId)) {
-      throw new HttpError("Invalid submission id", 400);
+      throw new HttpError(
+        "Invalid submission ID format. Must be a number.",
+        400
+      );
     }
 
     const submission = await prisma.submission.findUnique({
@@ -74,14 +109,17 @@ router.get(
     });
 
     if (!submission) {
-      throw new HttpError("Submission not found", 404);
+      throw new HttpError(`Submission #${submissionId} not found.`, 404);
     }
 
     const isOwner = submission.userId === req.user.userId;
     const isElevated = req.user.role === "admin" || req.user.role === "ci";
 
     if (!isOwner && !isElevated) {
-      throw new HttpError("Forbidden", 403);
+      throw new HttpError(
+        "You do not have permission to view this submission.",
+        403
+      );
     }
 
     return res.json(submission);
