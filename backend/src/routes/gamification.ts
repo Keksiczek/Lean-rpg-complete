@@ -5,6 +5,7 @@ import { UnauthorizedError, ValidationError, NotFoundError } from "../middleware
 import { badgeService } from "../services/badgeService.js";
 import { achievementService } from "../services/achievementService.js";
 import { leaderboardStatsService } from "../services/leaderboardStatsService.js";
+import logger from "../lib/logger.js";
 
 const router = Router();
 
@@ -61,34 +62,52 @@ router.get(
       throw new ValidationError("Invalid skill code", { issues: parsed.error.issues });
     }
 
-    const leaderboard = await leaderboardStatsService.getSkillLeaderboard(parsed.data.skillCode);
-    const payload = leaderboard.map((entry, idx) => ({
-      rank: idx + 1,
-      userId: entry.userId,
-      userName: entry.user.name,
-      skillXp: entry.skillXp,
-      masteryLevel: entry.masteryLevel,
-      level: entry.level,
-    }));
+    try {
+      const leaderboard = await leaderboardStatsService.getSkillLeaderboard(parsed.data.skillCode);
 
-    return res.json(payload);
+      if (leaderboard.length === 0) {
+        logger.warn({ skillCode: parsed.data.skillCode }, "No leaderboard entries found");
+        return res.json([]);
+      }
+
+      const payload = leaderboard.map((entry, idx) => ({
+        rank: idx + 1,
+        userId: entry.userId,
+        userName: entry.user?.name ?? "Unknown player",
+        skillXp: entry.totalXp ?? 0,
+        masteryLevel: entry.currentTier ?? 1,
+        level: entry.currentTier ?? 1,
+      }));
+
+      logger.info({ skillCode: parsed.data.skillCode, count: payload.length }, "Leaderboard fetched");
+      return res.json(payload);
+    } catch (error) {
+      logger.error({ error, skillCode: parsed.data.skillCode }, "Failed to fetch leaderboard");
+      throw new NotFoundError(`Leaderboard for skill ${parsed.data.skillCode}`);
+    }
   }),
 );
 
 router.get(
   "/leaderboard/trending",
   asyncHandler(async (_req: Request, res: Response) => {
-    const trending = await leaderboardStatsService.getTrending();
-    const payload = trending.map((stat, idx) => ({
-      rank: idx + 1,
-      userId: stat.userId,
-      userName: stat.user.name,
-      xpPerDay: stat.xpPerDay,
-      trend: stat.xpTrend,
-      maxStreak: stat.maxStreak,
-    }));
+    try {
+      const trending = await leaderboardStatsService.getTrending();
+      const payload = trending.map((stat, idx) => ({
+        rank: idx + 1,
+        userId: stat.userId,
+        userName: stat.user?.name ?? "Unknown player",
+        xpPerDay: stat.xpPerDay,
+        trend: stat.xpTrend,
+        maxStreak: stat.maxStreak,
+      }));
 
-    return res.json(payload);
+      logger.info({ count: payload.length }, "Trending leaderboard fetched");
+      return res.json(payload);
+    } catch (error) {
+      logger.error({ error }, "Failed to fetch trending leaderboard");
+      throw new NotFoundError("Trending leaderboard");
+    }
   }),
 );
 
@@ -106,12 +125,18 @@ router.get(
       throw new ValidationError("Cannot compare player with self");
     }
 
-    const comparison = await leaderboardStatsService.getComparison(id, otherId);
-    if (!comparison) {
+    try {
+      const comparison = await leaderboardStatsService.getComparison(id, otherId);
+      if (!comparison) {
+        throw new NotFoundError("Comparison");
+      }
+
+      logger.info({ id, otherId }, "Player comparison fetched");
+      return res.json(comparison);
+    } catch (error) {
+      logger.error({ error, id, otherId }, "Failed to fetch player comparison");
       throw new NotFoundError("Comparison");
     }
-
-    return res.json(comparison);
   }),
 );
 

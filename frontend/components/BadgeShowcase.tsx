@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { useGamification } from "@/hooks/useGamification";
 import { BadgeCard } from "./BadgeCard";
 
 export type BadgeDto = {
@@ -19,6 +20,8 @@ export function BadgeShowcase() {
   const [badges, setBadges] = useState<BadgeDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { onBadgeUnlocked } = useGamification();
+  const previousBadgesRef = useRef<BadgeDto[]>([]);
 
   useEffect(() => {
     async function fetchBadges() {
@@ -28,7 +31,21 @@ export function BadgeShowcase() {
           throw new Error("Failed to fetch badges");
         }
         const data = (await res.json()) as BadgeDto[];
+
+        if (previousBadgesRef.current.length > 0) {
+          const newlyUnlocked = data.filter(
+            (badge) =>
+              badge.isUnlocked &&
+              !previousBadgesRef.current.find(
+                (prev) => prev.id === badge.id && prev.isUnlocked,
+              ),
+          );
+
+          newlyUnlocked.forEach((badge) => onBadgeUnlocked(badge));
+        }
+
         setBadges(data);
+        previousBadgesRef.current = data;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -37,7 +54,10 @@ export function BadgeShowcase() {
     }
 
     fetchBadges();
-  }, []);
+    const interval = setInterval(fetchBadges, 30000);
+
+    return () => clearInterval(interval);
+  }, [onBadgeUnlocked]);
 
   if (loading) return <div>Loading badges...</div>;
   if (error) return <div className="text-red-500">{error}</div>;

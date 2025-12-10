@@ -128,6 +128,88 @@ After completing a 5S audit, Ishikawa analysis, or Gemba quest submission, the s
 - View logs (single service): `docker-compose logs -f backend` (or `postgres`, `redis`)
 - Run Prisma migration: `docker-compose exec backend npm run prisma:migrate`
 - Open shell in backend: `docker-compose exec backend /bin/sh`
+
+## 🚀 Production Deployment
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL 14+ (SQLite suitable only for small demos)
+- Required environment variables configured
+
+### Environment Variables
+
+```bash
+# backend/.env.production
+DATABASE_URL=postgresql://user:password@host:5432/lean_rpg_prod
+NODE_ENV=production
+JWT_SECRET=your-secret-key-here
+LOG_LEVEL=info
+```
+
+### Database Migration
+
+1. **Back up the current database** (for SQLite, copy the file):
+   ```bash
+   cp data.db data.db.backup
+   ```
+2. **Run migrations** (required after the gamification update):
+   ```bash
+   cd backend
+   npx prisma migrate deploy
+   ```
+3. **Seed badges and achievements** (run once per environment):
+   ```bash
+   npx prisma db seed
+   ```
+4. **Verify schema**:
+   ```bash
+   npx prisma studio
+   ```
+
+### Deployment Steps
+
+1. **Build backend**
+   ```bash
+   cd backend
+   npm run build
+   npm run prisma:migrate
+   ```
+2. **Build frontend**
+   ```bash
+   cd ../frontend
+   npm run build
+   ```
+3. **Start services**
+   ```bash
+   cd ../backend && npm start
+   cd ../frontend && npm start
+   ```
+
+### Monitoring Gamification
+
+- Check logs for `Badge unlocked` and `Achievement progress updated` to confirm hooks fire.
+- Watch for `Failed to fetch leaderboard` errors to catch data issues early.
+
+### Rollback Plan
+
+If deployment fails:
+
+1. Stop services.
+2. Restore database backup (e.g., `cp data.db.backup data.db`).
+3. Restart backend and frontend.
+
+### Performance Considerations
+
+- Cache leaderboard queries (e.g., Redis) for 5 minutes if traffic is high.
+- Run badge/achievement checks asynchronously to keep responses snappy.
+- Ensure Prisma indexes in `schema.prisma` remain in sync after migrations.
+
+### Known Limitations
+
+- Player comparison data is updated on-demand and can be slightly stale.
+- Trending leaderboard only includes activity from the last 7 days.
+- Skill leaderboard caps at 50 players by default (configurable).
 - Check PostgreSQL: `docker-compose exec postgres psql -U lean_rpg_user -d lean_rpg_dev`
 - Rebuild after code changes: `docker-compose build --no-cache && docker-compose up -d`
 

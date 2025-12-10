@@ -16,6 +16,7 @@ import { progressionService } from "../services/progressionService.js";
 import { achievementService } from "../services/achievementService.js";
 import { badgeService } from "../services/badgeService.js";
 import { leaderboardStatsService } from "../services/leaderboardStatsService.js";
+import { GameCompletionResponse } from "../types/gamification.js";
 import prisma from "../lib/prisma.js";
 
 const router = Router();
@@ -95,7 +96,7 @@ router.post(
       where: { userId: req.user!.id, status: "evaluated" },
     });
 
-    await achievementService.updateAchievementProgress(
+    const achieved = await achievementService.updateAchievementProgress(
       req.user!.id,
       "ishikawa_completed",
       completedCount,
@@ -104,12 +105,15 @@ router.post(
     const badges = await badgeService.checkAndUnlockBadges(req.user!.id);
     await leaderboardStatsService.updateStats(req.user!.id);
 
-    res.json({
+    const response: GameCompletionResponse<typeof analysis> = {
       ...analysis,
       xpEarned,
+      achievementsProgressed: achieved.length,
       badgesUnlocked: badges.length,
       badges,
-    });
+    };
+
+    res.json(response);
   })
 );
 

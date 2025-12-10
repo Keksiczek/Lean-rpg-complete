@@ -129,6 +129,8 @@ describe("BadgeService", () => {
 
       const unlocked = await badgeService.checkAndUnlockBadges(user.id);
 
+      await new Promise((resolve) => setImmediate(resolve));
+
       expect(mockProgressionService.addXp).toHaveBeenCalledWith(user.id, 25);
       expect(unlocked.some((badge) => badge.code === "TOP_10")).toBe(true);
     });

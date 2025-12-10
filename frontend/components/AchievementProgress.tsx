@@ -1,18 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useGamification } from "@/hooks/useGamification";
 
 export type AchievementDto = {
   id: number;
+  code: string;
   name: string;
   description: string;
-  userProgress: { progress: number; completedAt?: string | null };
+  icon?: string | null;
+  type: string;
+  difficulty?: string;
+  category?: string;
+  xpReward: number;
+  userProgress: { progress: number; completedAt?: Date | null };
 };
 
 export function AchievementProgress() {
   const [achievements, setAchievements] = useState<AchievementDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { onAchievementUnlocked } = useGamification();
+  const previousAchievementsRef = useRef<AchievementDto[]>([]);
 
   useEffect(() => {
     async function fetchAchievements() {
@@ -21,8 +31,28 @@ export function AchievementProgress() {
         if (!res.ok) {
           throw new Error("Failed to fetch achievements");
         }
-        const data = (await res.json()) as AchievementDto[];
-        setAchievements(data);
+        const apiData = (await res.json()) as AchievementDto[];
+        const parsed = apiData.map((achievement) => ({
+          ...achievement,
+          userProgress: {
+            ...achievement.userProgress,
+            completedAt: achievement.userProgress.completedAt
+              ? new Date(achievement.userProgress.completedAt)
+              : null,
+          },
+        }));
+        const newlyCompleted = parsed.filter(
+          (achievement) =>
+            achievement.userProgress.completedAt &&
+            !previousAchievementsRef.current.find(
+              (prev) => prev.id === achievement.id && prev.userProgress.completedAt,
+            ),
+        );
+
+        newlyCompleted.forEach((achievement) => onAchievementUnlocked(achievement));
+
+        setAchievements(parsed);
+        previousAchievementsRef.current = parsed;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -31,7 +61,7 @@ export function AchievementProgress() {
     }
 
     fetchAchievements();
-  }, []);
+  }, [onAchievementUnlocked]);
 
   if (loading) return <div>Loading achievements...</div>;
   if (error) return <div className="text-red-500">{error}</div>;

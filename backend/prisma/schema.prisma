@@ -419,6 +419,7 @@ model Badge {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   userBadges      UserBadge[]
+  achievements    Achievement[] @relation("AchievementBadge")
 
   @@index([unlockType])
   @@index([rarity])
@@ -450,7 +451,7 @@ model Achievement {
   trackingField    String
   xpReward         Int                @default(0)
   badgeId          Int?
-  badge            Badge?             @relation("AchievementBadge", fields: [badgeId], references: [id])
+  badge            Badge?             @relation("AchievementBadge", fields: [badgeId], references: [id], onDelete: SetNull)
   difficulty       String             @default("easy")
   category         String             @default("general")
   active           Boolean            @default(true)

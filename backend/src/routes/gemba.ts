@@ -23,6 +23,8 @@ import { progressionService } from "../services/progressionService.js";
 import { achievementService } from "../services/achievementService.js";
 import { badgeService } from "../services/badgeService.js";
 import { leaderboardStatsService } from "../services/leaderboardStatsService.js";
+import prisma from "../lib/prisma.js";
+import { GameCompletionResponse } from "../types/gamification.js";
 
 const router = Router();
 
@@ -117,8 +119,10 @@ router.post(
       await progressionService.addXp(user.id, xpEarned);
     }
 
-    const completedWalks = summarizeQuestProgress(user.id).filter((entry) => entry.status === "completed").length;
-    await achievementService.updateAchievementProgress(
+    const completedWalks = await prisma.quest.count({
+      where: { userId: user.id, questStatus: "completed" },
+    });
+    const achieved = await achievementService.updateAchievementProgress(
       user.id,
       "gemba_observations",
       completedWalks,
@@ -127,12 +131,15 @@ router.post(
     const badges = await badgeService.checkAndUnlockBadges(user.id);
     await leaderboardStatsService.updateStats(user.id);
 
-    res.json({
+    const response: GameCompletionResponse<typeof result> = {
       ...result,
       xpEarned,
+      achievementsProgressed: achieved.length,
       badgesUnlocked: badges.length,
       badges,
-    });
+    };
+
+    res.json(response);
   })
 );
 

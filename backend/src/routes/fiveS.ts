@@ -15,6 +15,7 @@ import { progressionService } from "../services/progressionService.js";
 import { achievementService } from "../services/achievementService.js";
 import { badgeService } from "../services/badgeService.js";
 import { leaderboardStatsService } from "../services/leaderboardStatsService.js";
+import { GameCompletionResponse } from "../types/gamification.js";
 import prisma from "../lib/prisma.js";
 
 const router = Router();
@@ -130,13 +131,15 @@ router.post(
     const badges = await badgeService.checkAndUnlockBadges(user.id);
     await leaderboardStatsService.updateStats(user.id);
 
-    res.json({
+    const response: GameCompletionResponse<typeof result> = {
       ...result,
       xpEarned,
       achievementsProgressed: achieved.length,
       badgesUnlocked: badges.length,
       badges,
-    });
+    };
+
+    res.json(response);
   })
 );
 

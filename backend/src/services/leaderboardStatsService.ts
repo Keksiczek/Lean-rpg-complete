@@ -45,10 +45,25 @@ export class LeaderboardStatsService {
   }
 
   async getSkillLeaderboard(skillCode: string, limit = 50) {
-    return prisma.playerSkill.findMany({
-      where: { skill: { category: skillCode }, isUnlocked: true },
-      include: { user: { select: { name: true, email: true } } },
-      orderBy: { skillXp: "desc" },
+    return prisma.skillProgression.findMany({
+      where: {
+        user: {
+          unlockedSkills: {
+            some: { skill: { category: skillCode } },
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            skillProgression: { select: { totalXp: true } },
+          },
+        },
+      },
+      orderBy: { totalXp: "desc" },
       take: limit,
     });
   }
