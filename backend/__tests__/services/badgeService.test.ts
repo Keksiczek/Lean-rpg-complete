@@ -87,6 +87,8 @@ describe("BadgeService", () => {
 
       const unlocked = await badgeService.checkAndUnlockBadges(user.id);
 
+      await new Promise((resolve) => setImmediate(resolve));
+
       expect(unlocked.length).toBeGreaterThan(0);
       expect(unlocked[0]).toHaveProperty("code", "5S_CHAMPION");
     });
@@ -99,6 +101,8 @@ describe("BadgeService", () => {
       const first = await badgeService.checkAndUnlockBadges(user.id);
       const second = await badgeService.checkAndUnlockBadges(user.id);
 
+      await new Promise((resolve) => setImmediate(resolve));
+
       expect(first.length).toBe(second.length);
     });
 
@@ -109,6 +113,8 @@ describe("BadgeService", () => {
 
       const unlocked = await badgeService.checkAndUnlockBadges(user.id);
 
+      await new Promise((resolve) => setImmediate(resolve));
+
       expect(unlocked.some((badge) => badge.code === "STREAK_MASTER")).toBe(true);
     });
 
@@ -118,6 +124,8 @@ describe("BadgeService", () => {
       if (leaderboard) leaderboard.globalRank = 5;
 
       const unlocked = await badgeService.checkAndUnlockBadges(user.id);
+
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(unlocked.some((badge) => badge.code === "TOP_10")).toBe(true);
     });
