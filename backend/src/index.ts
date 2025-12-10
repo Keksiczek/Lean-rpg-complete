@@ -20,6 +20,7 @@ import jobsRouter from "./routes/jobs.js";
 import gembaRouter from "./routes/gemba.js";
 import fiveSRouter from "./routes/fiveS.js";
 import problemSolvingRouter from "./routes/problemSolving.js";
+import visionRouter from "./routes/vision.js";
 
 const app = express();
 const PORT = config.app.port;
@@ -50,6 +51,7 @@ app.use("/api/jobs", verifyToken, jobsRouter);
 app.use("/api/gemba", verifyToken, gembaRouter);
 app.use("/api/5s", verifyToken, fiveSRouter);
 app.use("/api/problem-solving", verifyToken, problemSolvingRouter);
+app.use("/api", verifyToken, visionRouter);
 
 app.use((req, res) => {
   res.status(404).json({
