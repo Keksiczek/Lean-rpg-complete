@@ -22,6 +22,7 @@ describe("LeaderboardStatsService", () => {
       if (progression) progression.totalXp = 100;
 
       await leaderboardStatsService.updateStats(user.id);
+
       await new Promise((resolve) => setImmediate(resolve));
 
       const stats = prismaState.leaderboardRecords.get(user.id);
@@ -38,6 +39,7 @@ describe("LeaderboardStatsService", () => {
 
       await leaderboardStatsService.updateStats(user1.id);
       await leaderboardStatsService.updateStats(user2.id);
+
       await new Promise((resolve) => setImmediate(resolve));
 
       const stats1 = prismaState.leaderboardRecords.get(user1.id);
@@ -53,12 +55,12 @@ describe("LeaderboardStatsService", () => {
 
       await leaderboardStatsService.updateStats(user.id);
       const first = prismaState.leaderboardRecords.get(user.id);
-      await new Promise((resolve) => setImmediate(resolve));
 
       if (progression) progression.totalXp = 300;
       await leaderboardStatsService.updateStats(user.id);
-      await new Promise((resolve) => setImmediate(resolve));
       const second = prismaState.leaderboardRecords.get(user.id);
+
+      await new Promise((resolve) => setImmediate(resolve));
 
       expect(first?.xpTrend).toBe("stable");
       expect(second?.xpTrend).toBe("rising");
