@@ -5,6 +5,9 @@ import {
   ensureUser,
   getAreaDetail,
   getAreasForUser,
+  getBadgeProgress,
+  getDailyChallenge,
+  getLeaderboardSummary,
   getNpcDialogWithProblem,
   getProblemById,
   getQuestById,
@@ -12,6 +15,8 @@ import {
   startQuest,
   submitQuestAnswer,
   summarizeQuestProgress,
+  listIdeasForUser,
+  submitIdea,
 } from "../services/gembaService.js";
 import { ValidationError } from "../middleware/errors.js";
 
@@ -27,11 +32,18 @@ const questSubmissionSchema = z.object({
   solutionId: z.number(),
 });
 
+const ideaSubmissionSchema = z.object({
+  title: z.string().min(3),
+  problemContext: z.string().min(10),
+  proposedSolution: z.string().min(10),
+  impact: z.string().min(5),
+});
+
 router.get(
   "/areas",
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
-    const areas = getAreasForUser(user.level);
+    const areas = getAreasForUser(user);
     res.json({ areas });
   })
 );
@@ -41,7 +53,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
     const areaId = Number(req.params.areaId);
-    const area = getAreaDetail(areaId, user.level);
+    const area = getAreaDetail(areaId, user);
     res.json(area);
   })
 );
@@ -115,6 +127,55 @@ router.get(
     const user = await ensureUser(req.user);
     const progress = summarizeQuestProgress(user.id);
     res.json({ progress });
+  })
+);
+
+router.get(
+  "/leaderboard",
+  asyncHandler(async (_req: Request, res: Response) => {
+    const leaderboard = getLeaderboardSummary();
+    res.json(leaderboard);
+  })
+);
+
+router.get(
+  "/daily-challenge",
+  asyncHandler(async (_req: Request, res: Response) => {
+    const challenge = getDailyChallenge();
+    res.json(challenge);
+  })
+);
+
+router.get(
+  "/badges",
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = await ensureUser(req.user);
+    const badges = getBadgeProgress(user.id);
+    res.json(badges);
+  })
+);
+
+router.get(
+  "/ideas",
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = await ensureUser(req.user);
+    const ideas = listIdeasForUser(user.id);
+    res.json({ ideas });
+  })
+);
+
+router.post(
+  "/ideas",
+  asyncHandler(async (req: Request, res: Response) => {
+    const user = await ensureUser(req.user);
+    const parsed = ideaSubmissionSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      throw new ValidationError("Invalid idea submission", parsed.error.flatten());
+    }
+
+    const idea = submitIdea(user.id, parsed.data);
+    res.status(201).json({ idea });
   })
 );
 
