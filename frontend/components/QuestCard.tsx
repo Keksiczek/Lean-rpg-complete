@@ -42,7 +42,20 @@ export function QuestCard({ quest, onSelect }: QuestCardProps) {
     }
   })();
 
-  const content = (
+  const objectiveList =
+    Array.isArray(quest.objectives) || !quest.objectives
+      ? quest.objectives || []
+      : (() => {
+          try {
+            const parsed = JSON.parse(quest.objectives);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (error) {
+            console.error('Unable to parse objectives', error);
+            return [] as string[];
+          }
+        })();
+
+  const cardContent = (
     <div className="h-full p-6 bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
       <div className="flex items-start justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900 flex-1 pr-2">{quest.title}</h3>
@@ -65,11 +78,11 @@ export function QuestCard({ quest, onSelect }: QuestCardProps) {
         <p className="text-xs font-semibold text-gray-700 mb-2">Objectives:</p>
         <ul className="text-xs text-gray-600 space-y-1">
           {objectiveList.slice(0, 2).map((obj, idx) => (
-            <li key={idx} className="flex items-start">
+            <li key={obj + idx} className="flex items-start">
               <span className="mr-2">•</span>
               <span className="line-clamp-1">{obj}</span>
-              </li>
-            ))}
+            </li>
+          ))}
         </ul>
       </div>
 
@@ -94,11 +107,16 @@ export function QuestCard({ quest, onSelect }: QuestCardProps) {
 
   if (onSelect) {
     return (
-      <button type="button" onClick={() => onSelect(quest)} className="text-left w-full">
-        {content}
+      <button
+        type="button"
+        onClick={() => onSelect(quest)}
+        className="text-left"
+        aria-label={`View quest ${quest.title}`}
+      >
+        {cardContent}
       </button>
     );
   }
 
-  return <Link href={`/quests/${quest.id}`}>{content}</Link>;
+  return <Link href={`/quests/${quest.id}`}>{cardContent}</Link>;
 }

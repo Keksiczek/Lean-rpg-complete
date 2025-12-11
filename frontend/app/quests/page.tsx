@@ -5,8 +5,7 @@ import { useQuests } from '@/hooks/useQuests';
 import { QuestCard } from '@/components/QuestCard';
 import { QuestFilters } from '@/components/QuestFilters';
 import { Quest, Difficulty, LeanConcept } from '@/types/quest';
-import { QuestDetailModal } from '@/src/components/QuestDetailModal';
-import { useSubmissionStore } from '@/src/store/submissionStore';
+import { QuestDetailModal } from '@/components/QuestDetailModal';
 
 export default function QuestsPage() {
   const { data: quests = [], isLoading, error } = useQuests();
@@ -15,13 +14,6 @@ export default function QuestsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const resetSubmissionForm = useSubmissionStore((state) => state.resetForm);
-
-  const handleQuestClick = (quest: Quest) => {
-    resetSubmissionForm();
-    setSelectedQuest(quest);
-    setIsModalOpen(true);
-  };
 
   const filteredQuests = useMemo(() => {
     return quests.filter((quest: Quest) => {
@@ -34,6 +26,11 @@ export default function QuestsPage() {
       return matchesDifficulty && matchesConcept && matchesSearch;
     });
   }, [quests, selectedDifficulty, selectedConcept, searchTerm]);
+
+  const handleQuestClick = (quest: Quest) => {
+    setSelectedQuest(quest);
+    setIsModalOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -99,6 +96,15 @@ export default function QuestsPage() {
             <p className="text-gray-600 text-lg">No quests found matching your criteria</p>
           </div>
         )}
+
+        <QuestDetailModal
+          quest={selectedQuest}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedQuest(null);
+          }}
+        />
       </div>
 
       <QuestDetailModal
