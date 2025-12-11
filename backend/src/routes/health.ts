@@ -6,24 +6,16 @@ import redis from "../lib/redis.js";
 import logger from "../lib/logger.js";
 import { geminiService } from "../services/GeminiService.js";
 import { getQueueStats } from "../queue/queueFactory.js";
+import type {
+  GeminiHealth,
+  HealthPayload,
+  MemoryUsageMb,
+  OverallStatus,
+  QueueHealth,
+  SubsystemHealth,
+} from "../types/health.js";
 
 const router = Router();
-
-type ConnectionStatus = "connected" | "error";
-type OverallStatus = "healthy" | "degraded" | "unhealthy";
-
-interface SubsystemHealth {
-  status: ConnectionStatus;
-  latency_ms: number;
-  error?: string;
-}
-
-interface QueueHealth {
-  status: "running" | "stopped";
-  pending_jobs: number;
-  completed_jobs: number;
-  failed_jobs: number;
-}
 
 const measureLatency = async (fn: () => Promise<void>): Promise<SubsystemHealth> => {
   const start = performance.now();
@@ -39,7 +31,7 @@ const measureLatency = async (fn: () => Promise<void>): Promise<SubsystemHealth>
   }
 };
 
-function getMemoryUsage() {
+function getMemoryUsage(): MemoryUsageMb {
   const usage = process.memoryUsage();
   return {
     used_mb: Math.round(usage.heapUsed / 1024 / 1024),
@@ -52,8 +44,10 @@ router.get("/health", async (req: Request, res: Response) => {
   const requestId = (req as Request & { requestId?: string }).requestId;
 
   try {
-    const database = await measureLatency(() => prisma.$queryRaw`SELECT 1` as any);
-    const redisStatus = await measureLatency(() => redis.ping() as any);
+    const [database, redisStatus] = await Promise.all([
+      measureLatency(() => prisma.$queryRaw`SELECT 1` as any),
+      measureLatency(() => redis.ping() as any),
+    ]);
 
     let queue: QueueHealth = {
       status: "stopped",
@@ -75,7 +69,7 @@ router.get("/health", async (req: Request, res: Response) => {
     }
 
     const geminiCircuit = geminiService.getCircuitBreakerState();
-    const gemini = {
+    const gemini: GeminiHealth = {
       circuit_breaker: geminiCircuit.state.toUpperCase(),
       failures: geminiCircuit.failureCount,
       last_failure: geminiCircuit.lastFailure,
@@ -95,7 +89,7 @@ router.get("/health", async (req: Request, res: Response) => {
         ? "degraded"
         : "healthy";
 
-    const payload = {
+    const payload: HealthPayload = {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       database,

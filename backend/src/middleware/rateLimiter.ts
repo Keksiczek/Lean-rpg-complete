@@ -3,6 +3,7 @@ import RedisStore from "rate-limit-redis";
 import { Request, RequestHandler } from "express";
 import { getRedis } from "../lib/redis.js";
 import { config } from "../config.js";
+import logger from "../lib/logger.js";
 
 const redisClient = getRedis();
 
@@ -24,7 +25,16 @@ function createLimiter(max: number, windowMs: number, message: string, includeRe
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => isHealthCheckPath(req) || isRedisUnavailable(),
-    handler: (_req, res) => {
+    handler: (req, res) => {
+      logger.warn("Rate limit exceeded", {
+        context: "rate-limiter",
+        ip: req.ip,
+        path: req.path,
+        method: req.method,
+        limit: max,
+        window: windowMs,
+      });
+
       const payload: { status: number; error: string; retryAfter?: number } = {
         status: 429,
         error: message,
