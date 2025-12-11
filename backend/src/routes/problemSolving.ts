@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { ValidationError } from "../middleware/errors.js";
+import { validateBody, validateParams } from "../middleware/validation.js";
 import {
   getAnalysis,
   getChallenge,
@@ -61,8 +62,9 @@ router.get(
 
 router.post(
   "/analyses",
+  validateBody(startSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const payload = startSchema.parse(req.body);
+    const payload = req.validatedBody as z.infer<typeof startSchema>;
     const analysis = await startAnalysis(req.user!.userId, payload.challengeId, payload);
     res.status(201).json(analysis);
   })
@@ -70,8 +72,9 @@ router.post(
 
 router.get(
   "/analyses/:analysisId",
+  validateParams(z.object({ analysisId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const analysisId = Number(req.params.analysisId);
+    const { analysisId } = req.validatedParams as { analysisId: number };
     const analysis = await getAnalysis(analysisId);
     if (!analysis) {
       throw new ValidationError("Analysis not found");
@@ -82,9 +85,11 @@ router.get(
 
 router.post(
   "/analyses/:analysisId/submit",
+  validateParams(z.object({ analysisId: z.coerce.number().int().positive() })),
+  validateBody(updateSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const analysisId = Number(req.params.analysisId);
-    const payload = updateSchema.parse(req.body);
+    const { analysisId } = req.validatedParams as { analysisId: number };
+    const payload = req.validatedBody as z.infer<typeof updateSchema>;
     const analysis = await submitAnalysis(analysisId, req.user!.userId, payload);
     const xpEarned = analysis.xpGain ?? Math.floor((analysis.totalScore ?? 0) / 2);
 
@@ -119,9 +124,11 @@ router.post(
 
 router.patch(
   "/analyses/:analysisId",
+  validateParams(z.object({ analysisId: z.coerce.number().int().positive() })),
+  validateBody(updateSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const analysisId = Number(req.params.analysisId);
-    const payload = updateSchema.parse(req.body);
+    const { analysisId } = req.validatedParams as { analysisId: number };
+    const payload = req.validatedBody as z.infer<typeof updateSchema>;
     const analysis = await updateAnalysis(analysisId, payload);
     res.json(analysis);
   })
