@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../middleware/errorHandler.js";
+import { validateBody, validateParams } from "../middleware/validation.js";
 import {
   ensureUser,
   getAreaDetail,
@@ -56,9 +57,10 @@ router.get(
 
 router.get(
   "/areas/:areaId",
+  validateParams(z.object({ areaId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
-    const areaId = Number(req.params.areaId);
+    const { areaId } = req.validated!.params as { areaId: number };
     const area = getAreaDetail(areaId, user);
     res.json(area);
   })
@@ -66,8 +68,9 @@ router.get(
 
 router.get(
   "/npcs/:npcId",
+  validateParams(z.object({ npcId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const npcId = Number(req.params.npcId);
+    const { npcId } = req.validated!.params as { npcId: number };
     const npc = getNpcDialogWithProblem(npcId);
     res.json(npc);
   })
@@ -75,8 +78,9 @@ router.get(
 
 router.get(
   "/problems/:problemId",
+  validateParams(z.object({ problemId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const problemId = Number(req.params.problemId);
+    const { problemId } = req.validated!.params as { problemId: number };
     const problem = getProblemById(problemId);
     res.json(problem);
   })
@@ -84,8 +88,9 @@ router.get(
 
 router.get(
   "/quests/:questId",
+  validateParams(z.object({ questId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const questId = Number(req.params.questId);
+    const { questId } = req.validated!.params as { questId: number };
     const quest = getQuestById(questId);
     res.json(quest);
   })
@@ -93,8 +98,9 @@ router.get(
 
 router.post(
   "/quests/:questId/start",
+  validateParams(z.object({ questId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const questId = Number(req.params.questId);
+    const { questId } = req.validated!.params as { questId: number };
     const user = await ensureUser(req.user);
     const state = startQuest(questId, user);
     res.status(201).json({ state });
@@ -103,16 +109,14 @@ router.post(
 
 router.post(
   "/quests/:questId/submit",
+  validateParams(z.object({ questId: z.coerce.number().int().positive() })),
+  validateBody(questSubmissionSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const questId = Number(req.params.questId);
+    const { questId } = req.validated!.params as { questId: number };
     const user = await ensureUser(req.user);
+    const data = req.validated!.body as z.infer<typeof questSubmissionSchema>;
 
-    const parsed = questSubmissionSchema.safeParse(req.body);
-    if (!parsed.success) {
-      throw new ValidationError("Invalid quest submission", parsed.error.flatten());
-    }
-
-    const result = submitQuestAnswer(questId, user, parsed.data);
+    const result = submitQuestAnswer(questId, user, data);
     const xpEarned = result.evaluation.xpReward ?? 0;
 
     if (xpEarned > 0) {
@@ -145,8 +149,9 @@ router.post(
 
 router.get(
   "/quests/:questId/status",
+  validateParams(z.object({ questId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const questId = Number(req.params.questId);
+    const { questId } = req.validated!.params as { questId: number };
     const user = await ensureUser(req.user);
     const state = getQuestStatus(questId, user.id);
     res.json(state);
@@ -198,15 +203,12 @@ router.get(
 
 router.post(
   "/ideas",
+  validateBody(ideaSubmissionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
-    const parsed = ideaSubmissionSchema.safeParse(req.body);
+    const data = req.validated!.body as z.infer<typeof ideaSubmissionSchema>;
 
-    if (!parsed.success) {
-      throw new ValidationError("Invalid idea submission", parsed.error.flatten());
-    }
-
-    const idea = submitIdea(user.id, parsed.data);
+    const idea = submitIdea(user.id, data);
     res.status(201).json({ idea });
   })
 );
