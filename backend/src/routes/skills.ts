@@ -2,6 +2,7 @@ import { Request, Response, Router } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { UnauthorizedError, ValidationError } from "../middleware/errors.js";
+import { validateParams } from "../middleware/validation.js";
 import { skillTreeService } from "../services/skillTreeService.js";
 import { skillUnlockService } from "../services/skillUnlockService.js";
 import { progressionService } from "../services/progressionService.js";
@@ -100,12 +101,13 @@ router.get(
 
 router.post(
   "/:skillId/unlock",
+  validateParams(skillIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError();
     }
 
-    const skillId = parseSkillId(req.params);
+    const { skillId } = req.validatedParams as z.infer<typeof skillIdParamSchema>;
     await skillTreeService.unlockSkill(req.user.userId, skillId);
     const skills = await skillTreeService.getUserSkills(req.user.userId);
     return res.status(201).json(skills);

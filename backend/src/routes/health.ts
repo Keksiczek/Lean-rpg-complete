@@ -2,142 +2,124 @@ import { Router, Request, Response } from "express";
 import os from "os";
 import prisma from "../lib/prisma.js";
 import redis from "../lib/redis.js";
-import { geminiService } from "../services/GeminiService.js";
 import logger from "../lib/logger.js";
+import { geminiService } from "../services/GeminiService.js";
 import { getQueueStats } from "../queue/queueFactory.js";
 
 const router = Router();
 
-type HealthStatus = "ok" | "degraded" | "error";
-
-interface HealthResponse {
-  status: HealthStatus;
+interface HealthDetails {
+  status: "healthy" | "degraded" | "unhealthy";
   timestamp: string;
-  requestId?: string;
-  details: {
-    database: "connected" | "error";
-    redis: "connected" | "error";
-    memory: {
-      used: string;
-      rss: string;
+  database: {
+    status: "connected" | "error";
+    latency_ms: number;
+  };
+  redis: {
+    status: "connected" | "error";
+    latency_ms: number;
+  };
+  queue: {
+    status: "running" | "stopped";
+    pending_jobs: number;
+    completed_jobs: number;
+    failed_jobs: number;
+  };
+  gemini: {
+    circuit_breaker: "CLOSED" | "OPEN" | "HALF_OPEN";
+    failures: number;
+    last_failure: Date | null;
+  };
+  memory: {
+    used_mb: number;
+    rss_mb: number;
+    heap_mb: number;
+  };
+  uptime_seconds: number;
+}
+
+async function checkDatabase() {
+  const start = performance.now();
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    const latency_ms = Math.round(performance.now() - start);
+    return { status: "connected" as const, latency_ms };
+  } catch (error) {
+    logger.error("Healthcheck database failed", { context: "health", error });
+    return { status: "error" as const, latency_ms: Math.round(performance.now() - start) };
+  }
+}
+
+async function checkRedis() {
+  const start = performance.now();
+  try {
+    await redis.ping();
+    const latency_ms = Math.round(performance.now() - start);
+    return { status: "connected" as const, latency_ms };
+  } catch (error) {
+    logger.error("Healthcheck redis failed", { context: "health", error });
+    return { status: "error" as const, latency_ms: Math.round(performance.now() - start) };
+  }
+}
+
+async function checkQueue() {
+  try {
+    const stats = await getQueueStats();
+    return {
+      status: "running" as const,
+      pending_jobs: stats.summary?.waiting ?? 0,
+      completed_jobs: stats.summary?.completed ?? 0,
+      failed_jobs: stats.summary?.failed ?? 0,
     };
-    uptime: number;
-    gemini_circuit: string;
-    gemini_failures: number;
-    gemini_last_failure: Date | null;
-    hostname: string;
-    queue_stats?: {
-      waiting: number;
-      active: number;
-      completed: number;
-      failed: number;
-    };
+  } catch (error) {
+    logger.error("Healthcheck queue stats failed", { context: "health", error });
+    return { status: "stopped" as const, pending_jobs: 0, completed_jobs: 0, failed_jobs: 0 };
+  }
+}
+
+function getMemoryUsage() {
+  const memUsage = process.memoryUsage();
+  return {
+    used_mb: Math.round(memUsage.heapUsed / 1024 / 1024),
+    rss_mb: Math.round(memUsage.rss / 1024 / 1024),
+    heap_mb: Math.round(memUsage.heapTotal / 1024 / 1024),
   };
 }
 
-router.get("/health", async (req: Request, res: Response) => {
-  const requestId = req.requestId;
+router.get("/health", async (_req: Request, res: Response) => {
+  const [database, redisStatus, queue] = await Promise.all([
+    checkDatabase(),
+    checkRedis(),
+    checkQueue(),
+  ]);
 
-  try {
-    let dbStatus: "connected" | "error" = "connected";
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-    } catch (error) {
-      dbStatus = "error";
-      logger.error("Healthcheck database failed", {
-        context: "health",
-        error,
-        requestId,
-      });
-    }
+  const circuit = geminiService.getCircuitBreakerState();
+  const gemini = {
+    circuit_breaker: circuit.state.toUpperCase() as HealthDetails["gemini"]["circuit_breaker"],
+    failures: circuit.failureCount,
+    last_failure: circuit.lastFailure,
+  };
 
-    let redisStatus: "connected" | "error" = "connected";
-    try {
-      await redis.ping();
-    } catch (error) {
-      redisStatus = "error";
-      logger.error("Healthcheck redis failed", {
-        context: "health",
-        error,
-        requestId,
-      });
-    }
-
-    const memUsage = process.memoryUsage();
-    const memUsed = Math.round(memUsage.heapUsed / 1024 / 1024);
-    const memRss = Math.round(memUsage.rss / 1024 / 1024);
-
-    const circuitState = geminiService.getCircuitBreakerState();
-    let queueStats: HealthResponse["details"]["queue_stats"];
-    try {
-      const stats = await getQueueStats();
-      queueStats = stats.summary;
-    } catch (error) {
-      logger.error("Healthcheck queue stats failed", {
-        context: "health",
-        error,
-        requestId,
-      });
-    }
-
-    let status: HealthStatus = "ok";
-    if (dbStatus === "error" && redisStatus === "error") {
-      status = "error";
-    } else if (
-      dbStatus === "error" ||
-      redisStatus === "error" ||
-      circuitState.state === "open"
-    ) {
-      status = "degraded";
-    }
-
-    const payload: HealthResponse = {
-      status,
-      timestamp: new Date().toISOString(),
-      requestId,
-      details: {
-        database: dbStatus,
-        redis: redisStatus,
-        memory: {
-          used: `${memUsed}MB`,
-          rss: `${memRss}MB`,
-        },
-        uptime: Math.floor(process.uptime()),
-        gemini_circuit: circuitState.state,
-        gemini_failures: circuitState.failureCount,
-        gemini_last_failure: circuitState.lastFailure,
-        hostname: os.hostname(),
-        queue_stats: queueStats,
-      },
-    };
-
-    logger.info("Healthcheck executed", {
-      context: "health",
-      requestId,
-      status,
-    });
-
-    res.status(status === "error" ? 503 : 200).json(payload);
-  } catch (error) {
-    logger.error("Healthcheck fatal error", {
-      context: "health",
-      error,
-      requestId,
-    });
-    res.status(503).json({
-      status: "error",
-      timestamp: new Date().toISOString(),
-      requestId,
-      details: {
-        database: "error",
-        redis: "error",
-        memory: { used: "unknown", rss: "unknown" },
-        uptime: Math.floor(process.uptime()),
-        gemini_circuit: "unknown",
-        hostname: os.hostname(),
-      },
-    });
+  let status: HealthDetails["status"] = "healthy";
+  if (database.status === "error" || redisStatus.status === "error" || queue.status === "stopped") {
+    status = "degraded";
   }
+  if (database.status === "error" && redisStatus.status === "error") {
+    status = "unhealthy";
+  }
+
+  const payload: HealthDetails = {
+    status,
+    timestamp: new Date().toISOString(),
+    database,
+    redis: redisStatus,
+    queue,
+    gemini,
+    memory: getMemoryUsage(),
+    uptime_seconds: Math.floor(process.uptime()),
+  };
+
+  return res.status(status === "unhealthy" ? 503 : 200).json(payload);
 });
 
 export default router;
