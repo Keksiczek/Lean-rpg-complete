@@ -6,22 +6,10 @@ import { validateParams } from "../middleware/validation.js";
 import { skillTreeService } from "../services/skillTreeService.js";
 import { skillUnlockService } from "../services/skillUnlockService.js";
 import { progressionService } from "../services/progressionService.js";
-import { validateParams } from "../middleware/validation.js";
 
 const router = Router();
 
 const skillIdParamSchema = z.object({ skillId: z.coerce.number().int().positive() });
-
-function parseSkillId(params: Request["params"]) {
-  try {
-    return skillIdParamSchema.parse(params).skillId;
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new ValidationError("Invalid skill id", { issues: error.issues });
-    }
-    throw error;
-  }
-}
 
 router.get(
   "/tree",
@@ -51,12 +39,13 @@ router.get(
 
 router.patch(
   "/:skillId/activate",
+  validateParams(skillIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError();
     }
 
-    const skillId = parseSkillId(req.params);
+    const { skillId } = req.validated!.params as { skillId: number };
     const updated = await skillTreeService.activateSkill(req.user.userId, skillId);
     return res.json(updated);
   }),
@@ -64,12 +53,13 @@ router.patch(
 
 router.post(
   "/:skillId/deactivate",
+  validateParams(skillIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError();
     }
 
-    const skillId = parseSkillId(req.params);
+    const { skillId } = req.validated!.params as { skillId: number };
     const updated = await skillTreeService.deactivateSkill(req.user.userId, skillId);
     return res.json(updated);
   }),
@@ -89,12 +79,13 @@ router.get(
 
 router.get(
   "/:skillId/conditions",
+  validateParams(skillIdParamSchema),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError();
     }
 
-    const skillId = parseSkillId(req.params);
+    const { skillId } = req.validated!.params as { skillId: number };
     const result = await skillUnlockService.meetsUnlockConditions(req.user.userId, skillId);
     return res.json(result);
   }),
