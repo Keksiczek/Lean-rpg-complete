@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import type { IshikawaProblem } from "@/types/ishikawa";
 import { useIshikawaStore } from "@/src/store/ishikawaStore";
 import { IshikawaProblemSelector } from "./IshikawaProblemSelector";
 import { IshikawaDiagramBuilder } from "./IshikawaDiagramBuilder";
@@ -29,7 +30,7 @@ export const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete }) => {
   if (!currentProblem) {
     return (
       <IshikawaProblemSelector
-        onSelectProblem={(problem) => selectProblem(problem)}
+        onSelectProblem={(problem: IshikawaProblem) => selectProblem(problem)}
       />
     );
   }
@@ -46,7 +47,7 @@ export const IshikawaGame: React.FC<IshikawaGameProps> = ({ onComplete }) => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" aria-label="Ishikawa game">
       <IshikawaDiagramBuilder
         problem={currentProblem}
         onGenerateSolutions={async () => {

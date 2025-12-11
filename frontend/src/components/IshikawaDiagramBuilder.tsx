@@ -1,7 +1,10 @@
 "use client";
 
 import React from "react";
-import type { IshikawaCategoryName, IshikawaProblem } from "@/types/ishikawa";
+import type {
+  IshikawaCategoryName,
+  IshikawaProblem,
+} from "@/types/ishikawa";
 import { useIshikawaStore } from "@/src/store/ishikawaStore";
 
 const CATEGORIES_6M: IshikawaCategoryName[] = [
@@ -65,13 +68,17 @@ export const IshikawaDiagramBuilder: React.FC<
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-label="Ishikawa diagram builder">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">{problem.title}</h2>
+        <h2 className="text-2xl font-bold text-gray-900" aria-live="polite">
+          {problem.title}
+        </h2>
         <p className="text-gray-600 mt-1">{problem.description}</p>
       </div>
 
-      <div className="flex gap-2" role="group" aria-label="Category type selection">
+      {/* Category Toggle */}
+      <div className="flex gap-2" role="group" aria-label="Category type toggle">
         <button
           onClick={() => setCategoryType("6M")}
           className={`px-4 py-2 rounded font-semibold ${
@@ -81,6 +88,7 @@ export const IshikawaDiagramBuilder: React.FC<
           }`}
           aria-pressed={categoryType === "6M"}
           aria-label="Use 6M categories"
+          type="button"
         >
           6M (Traditional)
         </button>
@@ -93,19 +101,17 @@ export const IshikawaDiagramBuilder: React.FC<
           }`}
           aria-pressed={categoryType === "8P"}
           aria-label="Use 8P categories"
+          type="button"
         >
           8P (Services)
         </button>
       </div>
 
-      <div className="bg-gray-50 p-4 rounded space-y-3">
+      {/* Add Cause Form */}
+      <div className="bg-gray-50 p-4 rounded space-y-3" aria-label="Add cause form">
         <h3 className="font-semibold text-gray-900">Add a Root Cause</h3>
 
-        <div
-          className="grid grid-cols-2 md:grid-cols-3 gap-2"
-          role="group"
-          aria-label="Select category to add a cause"
-        >
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2" role="listbox" aria-label="Cause categories">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -116,7 +122,8 @@ export const IshikawaDiagramBuilder: React.FC<
                   : "bg-white border border-gray-300 hover:border-blue-400"
               }`}
               aria-pressed={selectedCategory === cat}
-              aria-label={`Select category ${CATEGORY_INFO[cat].en}`}
+              aria-label={`Select ${CATEGORY_INFO[cat].en} category`}
+              type="button"
             >
               <div className="text-lg mb-1" aria-hidden>
                 {CATEGORY_INFO[cat].icon}
@@ -126,41 +133,39 @@ export const IshikawaDiagramBuilder: React.FC<
           ))}
         </div>
 
-        <label className="sr-only" htmlFor="ishikawa-cause-input">
-          Describe the cause
-        </label>
         <input
-          id="ishikawa-cause-input"
           type="text"
           value={newCauseText}
-          onChange={(event) => setNewCauseText(event.target.value)}
-          onKeyDown={(event) => event.key === "Enter" && handleAddCause()}
+          onChange={(e) => setNewCauseText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAddCause()}
           placeholder="Describe the cause..."
           className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Cause description"
+          aria-label={`Cause description for ${CATEGORY_INFO[selectedCategory].en}`}
         />
 
         <button
           onClick={handleAddCause}
           className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700"
-          aria-label="Add cause to selected category"
+          aria-label="Add cause to diagram"
+          type="button"
         >
           Add Cause
         </button>
       </div>
 
+      {/* Causes by Category */}
       <div className="space-y-3">
         <h3 className="font-semibold text-gray-900">
           Added Causes ({causes.length})
         </h3>
 
         {categories.map((category) => {
-          const categoryCauses = causes.filter((cause) => cause.category === category);
+          const categoryCauses = causes.filter((c) => c.category === category);
           return (
             <div
               key={category}
               className="bg-white p-4 rounded border border-gray-200"
-              aria-label={`${CATEGORY_INFO[category].en} causes list`}
+              aria-label={`${CATEGORY_INFO[category].en} causes`}
             >
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl" aria-hidden>
@@ -192,6 +197,7 @@ export const IshikawaDiagramBuilder: React.FC<
                         onClick={() => removeCause(cause.id)}
                         className="text-red-600 hover:text-red-700 text-sm font-semibold"
                         aria-label={`Remove cause ${cause.text}`}
+                        type="button"
                       >
                         ✕
                       </button>
@@ -204,12 +210,14 @@ export const IshikawaDiagramBuilder: React.FC<
         })}
       </div>
 
-      <div className="flex flex-col md:flex-row gap-2">
+      {/* Actions */}
+      <div className="flex gap-2" aria-label="Diagram actions">
         <button
           onClick={onGenerateSolutions}
           disabled={causes.length < 2}
           className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Generate solutions based on added causes"
+          aria-label="Generate solutions"
+          type="button"
         >
           {solutions.length > 0 ? "Regenerate Solutions" : "Generate Solutions"}
         </button>
@@ -219,6 +227,7 @@ export const IshikawaDiagramBuilder: React.FC<
             onClick={onSubmit}
             className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700"
             aria-label="Submit analysis"
+            type="button"
           >
             Submit Analysis
           </button>

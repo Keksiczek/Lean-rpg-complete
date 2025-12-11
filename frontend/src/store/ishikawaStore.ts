@@ -1,12 +1,11 @@
-"use client";
-
 import { create } from "zustand";
 import type {
+  IshikawaProblem,
   IshikawaCause,
-  IshikawaCategoryName,
-  IshikawaResult,
   IshikawaSolution,
+  IshikawaResult,
   IshikawaState,
+  IshikawaCategoryName,
 } from "@/types/ishikawa";
 
 export const useIshikawaStore = create<IshikawaState>((set, get) => ({
@@ -41,7 +40,7 @@ export const useIshikawaStore = create<IshikawaState>((set, get) => ({
 
   removeCause: (causeId) => {
     set((state) => ({
-      causes: state.causes.filter((cause) => cause.id !== causeId),
+      causes: state.causes.filter((c) => c.id !== causeId),
     }));
   },
 
@@ -76,7 +75,11 @@ export const useIshikawaStore = create<IshikawaState>((set, get) => ({
     const { currentProblem, causes, solutions } = get();
     if (!currentProblem) throw new Error("No problem selected");
 
-    const score = Math.min(1000, causes.length * 50 + solutions.length * 100);
+    // Calculate score based on analysis quality
+    const score = Math.min(
+      1000,
+      causes.length * 50 + solutions.length * 100
+    );
 
     const result: IshikawaResult = {
       problemId: currentProblem.id,

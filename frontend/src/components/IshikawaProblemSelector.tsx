@@ -12,7 +12,7 @@ export const IshikawaProblemSelector: React.FC<
   IshikawaProblemSelectorProps
 > = ({ onSelectProblem }) => {
   return (
-    <div className="space-y-6 py-8">
+    <div className="space-y-6 py-8" aria-label="Ishikawa problem selector">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-2">
           Ishikawa Diagram Builder
@@ -28,7 +28,8 @@ export const IshikawaProblemSelector: React.FC<
             key={problem.id}
             onClick={() => onSelectProblem(problem)}
             className="w-full p-4 rounded-lg border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition text-left"
-            aria-label={`Select problem ${problem.title} difficulty ${problem.difficulty}`}
+            aria-label={`Select problem ${problem.title}`}
+            type="button"
           >
             <div className="flex justify-between items-start">
               <div>
@@ -47,7 +48,7 @@ export const IshikawaProblemSelector: React.FC<
                       ? "bg-yellow-100 text-yellow-700"
                       : "bg-red-100 text-red-700"
                 }`}
-                aria-label={`${problem.difficulty} difficulty`}
+                aria-label={`Difficulty ${problem.difficulty}`}
               >
                 {problem.difficulty.toUpperCase()}
               </span>
@@ -56,10 +57,7 @@ export const IshikawaProblemSelector: React.FC<
         ))}
       </div>
 
-      <div
-        className="bg-blue-50 p-4 rounded max-w-2xl mx-auto text-center text-sm text-gray-700"
-        role="note"
-      >
+      <div className="bg-blue-50 p-4 rounded max-w-2xl mx-auto text-center text-sm text-gray-700">
         💡 <span className="font-semibold">Tip:</span> Analyze the problem,
         identify root causes, and discover solutions!
       </div>

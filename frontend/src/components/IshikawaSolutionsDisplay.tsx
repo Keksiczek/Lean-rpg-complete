@@ -11,11 +11,11 @@ export const IshikawaSolutionsDisplay: React.FC<
   IshikawaSolutionsDisplayProps
 > = ({ solutions }) => {
   const sortedSolutions = [...solutions].sort(
-    (first, second) => second.priority - first.priority
+    (a, b) => b.priority - a.priority
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-label="Solution recommendations">
       <div>
         <h3 className="text-2xl font-bold text-gray-900 mb-2">
           Recommended Solutions
@@ -49,26 +49,26 @@ export const IshikawaSolutionsDisplay: React.FC<
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4" role="list">
-              <div role="listitem">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div>
                 <p className="text-sm text-gray-600">Impact</p>
                 <p className="text-lg font-bold text-green-600">
                   {solution.expectedImpact}%
                 </p>
               </div>
-              <div role="listitem">
+              <div>
                 <p className="text-sm text-gray-600">Difficulty</p>
                 <p className="text-lg font-bold text-gray-900">
                   {solution.difficulty.toUpperCase()}
                 </p>
               </div>
-              <div role="listitem">
+              <div>
                 <p className="text-sm text-gray-600">Cost</p>
                 <p className="text-lg font-bold text-gray-900">
                   {solution.estimatedCost.toUpperCase()}
                 </p>
               </div>
-              <div role="listitem">
+              <div>
                 <p className="text-sm text-gray-600">Priority</p>
                 <p className="text-lg font-bold text-blue-600">
                   {solution.priority}/10
@@ -82,9 +82,9 @@ export const IshikawaSolutionsDisplay: React.FC<
                   Implementation Steps:
                 </p>
                 <ol className="space-y-1">
-                  {solution.implementationSteps.map((step, stepIndex) => (
-                    <li key={stepIndex} className="text-sm text-gray-700">
-                      {stepIndex + 1}. {step}
+                  {solution.implementationSteps.map((step, idx) => (
+                    <li key={idx} className="text-sm text-gray-700">
+                      {idx + 1}. {step}
                     </li>
                   ))}
                 </ol>
