@@ -31,6 +31,16 @@ export function QuestCard({ quest, onSelect }: QuestCardProps) {
   };
 
   const difficulty = difficultyConfig[quest.difficulty];
+  const objectiveList = (() => {
+    if (Array.isArray(quest.objectives)) return quest.objectives;
+    try {
+      const parsed = JSON.parse(quest.objectives);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error("Failed to parse objectives", error);
+      return [];
+    }
+  })();
 
   const objectiveList =
     Array.isArray(quest.objectives) || !quest.objectives

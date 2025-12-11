@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuests } from '@/hooks/useQuests';
 import { QuestCard } from '@/components/QuestCard';
 import { QuestFilters } from '@/components/QuestFilters';
@@ -106,6 +106,16 @@ export default function QuestsPage() {
           }}
         />
       </div>
+
+      <QuestDetailModal
+        quest={selectedQuest}
+        isOpen={isModalOpen}
+        onClose={() => {
+          resetSubmissionForm();
+          setIsModalOpen(false);
+          setSelectedQuest(null);
+        }}
+      />
     </div>
   );
 }
