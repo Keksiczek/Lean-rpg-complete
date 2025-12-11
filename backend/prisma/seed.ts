@@ -7,6 +7,72 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const prisma = new PrismaClient();
 
+type QuestSeed = {
+  code: string;
+  title: string;
+  description: string;
+  leanConcept: string;
+  story: string;
+  objectives: unknown[];
+  difficulty: string;
+  xpReward: number;
+  timeEstimate: string;
+  skillUnlock?: string;
+  area?: string;
+};
+
+const DEFAULT_QUESTS: QuestSeed[] = [
+  {
+    code: "QUEST_5S_INTRO",
+    title: "Kickstart 5S",
+    description: "Organize a workstation using 5S principles",
+    leanConcept: "5S",
+    story: "A cluttered bench is slowing output. Lead the team through Sort, Set in Order, Shine, Standardize, and Sustain.",
+    objectives: [
+      { description: "Identify red-tag items", points: 10 },
+      { description: "Create a shadow board layout", points: 15 },
+    ],
+    difficulty: "easy",
+    xpReward: 50,
+    timeEstimate: "2h",
+    skillUnlock: "5S-BASICS",
+    area: "Assembly",
+  },
+  {
+    code: "QUEST_PS_FISHBONE",
+    title: "Fishbone Investigation",
+    description: "Lead an Ishikawa analysis for recurring defects",
+    leanConcept: "Problem Solving",
+    story: "Defects keep appearing in the painting booth. Facilitate a root-cause workshop using the 6M categories.",
+    objectives: [
+      { description: "Collect evidence on the last 3 defects", points: 10 },
+      { description: "Map potential causes on a fishbone diagram", points: 15 },
+    ],
+    difficulty: "medium",
+    xpReward: 90,
+    timeEstimate: "3h",
+    skillUnlock: "PROBLEM-SOLVING",
+    area: "Painting",
+  },
+  {
+    code: "QUEST_KAIZEN_BLITZ",
+    title: "Kaizen Blitz",
+    description: "Rapid improvement sprint on the injection molding cell",
+    leanConcept: "Kaizen",
+    story: "Cycle time is drifting upward. Run a two-day blitz to stabilize the cell and document standard work.",
+    objectives: [
+      { description: "Capture current-state process steps", points: 10 },
+      { description: "Implement one poka-yoke idea", points: 20 },
+      { description: "Publish updated standard work", points: 20 },
+    ],
+    difficulty: "hard",
+    xpReward: 140,
+    timeEstimate: "1d",
+    skillUnlock: "KAIZEN",
+    area: "Injection Molding",
+  },
+];
+
 async function seedUsers() {
   const users = [
     { email: "admin@example.com", name: "Admin", role: "admin" },
@@ -57,66 +123,20 @@ async function seedAreas() {
   }
 }
 
-// Default fallback quests if quests.json doesn't exist
-const DEFAULT_QUESTS = [
-  {
-    code: "QUEST_5S_INTRO",
-    title: "Introduction to 5S",
-    description: "Learn the fundamentals of 5S methodology",
-    leanConcept: "5S",
-    story: "A mysterious factory awaits your expertise. Start by understanding 5S basics.",
-    objectives: ["Read 5S definition", "Identify muda", "Pass quiz"],
-    difficulty: "easy",
-    xpReward: 50,
-    timeEstimate: 30,
-    skillUnlock: null,
-    area: "Assembly",
-  },
-  {
-    code: "QUEST_PS_FISHBONE",
-    title: "Fishbone Analysis",
-    description: "Master root cause analysis with Ishikawa diagram",
-    leanConcept: "Problem Solving",
-    story: "A quality issue plagues the assembly line. Can you find the root cause?",
-    objectives: ["Create fishbone", "Identify 3 root causes", "Propose solution"],
-    difficulty: "medium",
-    xpReward: 100,
-    timeEstimate: 45,
-    skillUnlock: null,
-    area: "Assembly",
-  },
-  {
-    code: "QUEST_KAIZEN_BLITZ",
-    title: "Kaizen Event",
-    description: "Plan and execute a continuous improvement event",
-    leanConcept: "Kaizen",
-    story: "Lead your team through a rapid improvement cycle",
-    objectives: ["Gather team", "Identify improvements", "Measure impact"],
-    difficulty: "hard",
-    xpReward: 150,
-    timeEstimate: 60,
-    skillUnlock: null,
-    area: "Injection Molding",
-  },
-];
-
 async function seedQuests() {
   const questsPath = path.join(__dirname, "../src/data/quests.json");
-  let questsData = DEFAULT_QUESTS;
 
-  // Try to load from file, fallback to defaults if not found
+  let questsData: QuestSeed[] = DEFAULT_QUESTS;
+
   if (fs.existsSync(questsPath)) {
     try {
-      const fileContent = fs.readFileSync(questsPath, "utf-8");
-      questsData = JSON.parse(fileContent);
-      console.log(`📚 Loaded quests from quests.json`);
+      const parsed = JSON.parse(fs.readFileSync(questsPath, "utf-8"));
+      questsData = Array.isArray(parsed) ? parsed : DEFAULT_QUESTS;
     } catch (error) {
-      console.warn(`⚠️  Could not parse quests.json, using defaults:`, error);
+      console.warn("⚠️  Failed to parse quests.json, using defaults...", error);
     }
   } else {
-    console.warn(
-      `⚠️  quests.json not found, using ${DEFAULT_QUESTS.length} default quests`
-    );
+    console.warn("⚠️  quests.json not found, using default quest seeds...");
   }
 
   const areas = await prisma.area.findMany();

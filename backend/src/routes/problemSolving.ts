@@ -19,6 +19,7 @@ import { badgeService } from "../services/badgeService.js";
 import { leaderboardStatsService } from "../services/leaderboardStatsService.js";
 import { GameCompletionResponse } from "../types/gamification.js";
 import prisma from "../lib/prisma.js";
+import { validateBody, validateParams } from "../middleware/validation.js";
 
 const router = Router();
 
@@ -64,7 +65,7 @@ router.post(
   "/analyses",
   validateBody(startSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const payload = req.validatedBody as z.infer<typeof startSchema>;
+    const payload = req.validated!.body as z.infer<typeof startSchema>;
     const analysis = await startAnalysis(req.user!.userId, payload.challengeId, payload);
     res.status(201).json(analysis);
   })
@@ -74,7 +75,7 @@ router.get(
   "/analyses/:analysisId",
   validateParams(z.object({ analysisId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
-    const { analysisId } = req.validatedParams as { analysisId: number };
+    const { analysisId } = req.validated!.params as { analysisId: number };
     const analysis = await getAnalysis(analysisId);
     if (!analysis) {
       throw new ValidationError("Analysis not found");
@@ -88,8 +89,8 @@ router.post(
   validateParams(z.object({ analysisId: z.coerce.number().int().positive() })),
   validateBody(updateSchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { analysisId } = req.validatedParams as { analysisId: number };
-    const payload = req.validatedBody as z.infer<typeof updateSchema>;
+    const { analysisId } = req.validated!.params as { analysisId: number };
+    const payload = req.validated!.body as z.infer<typeof updateSchema>;
     const analysis = await submitAnalysis(analysisId, req.user!.userId, payload);
     const xpEarned = analysis.xpGain ?? Math.floor((analysis.totalScore ?? 0) / 2);
 

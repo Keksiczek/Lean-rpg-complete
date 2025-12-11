@@ -69,22 +69,11 @@ router.get(
 );
 
 router.post(
-  "/start",
-  validateBody(z.object({ areaId: z.coerce.number().int().positive() })),
-  asyncHandler(async (req: Request, res: Response) => {
-    const user = await ensureUser(req.user);
-    const { areaId } = req.validatedBody as { areaId: number };
-    const audit = await startAudit(user.id, areaId);
-    res.status(201).json({ audit });
-  })
-);
-
-router.post(
   "/audits",
   validateBody(z.object({ areaId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
-    const { areaId } = req.validatedBody as { areaId: number };
+    const { areaId } = req.validated!.body as { areaId: number };
 
     const audit = await startAudit(user.id, areaId);
     res.status(201).json({ audit });
@@ -93,9 +82,10 @@ router.post(
 
 router.get(
   "/audits/:auditId",
+  validateParams(z.object({ auditId: z.coerce.number().int().positive() })),
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
-    const auditId = Number(req.params.auditId);
+    const auditId = (req.validated!.params as { auditId: number }).auditId;
     const audit = await getAuditDetail(auditId, user.id);
 
     if (!audit) {
@@ -112,12 +102,16 @@ router.post(
   validateBody(submissionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     const user = await ensureUser(req.user);
-    const { auditId } = req.validatedParams as { auditId: number };
-    const { answers, problems, timeSpent } = req.validatedBody as z.infer<
-      typeof submissionSchema
-    >;
+    const auditId = (req.validated!.params as { auditId: number }).auditId;
+    const parsed = req.validated!.body as z.infer<typeof submissionSchema>;
 
-    const result = await submitAudit(auditId, user.id, answers, problems, timeSpent);
+    const result = await submitAudit(
+      auditId,
+      user.id,
+      parsed.answers,
+      parsed.problems,
+      parsed.timeSpent
+    );
     const xpEarned = result.xpGain ?? Math.floor((result.totalScore ?? 0) / 2);
 
     if (xpEarned > 0) {

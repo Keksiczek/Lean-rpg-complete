@@ -7,11 +7,11 @@ import {
   HttpError,
   NotFoundError,
   UnauthorizedError,
-  ValidationError,
 } from "../middleware/errors.js";
 import { validateBody, validateParams } from "../middleware/validation.js";
 import { enqueueSubmissionAnalysis } from "../queue/queueFactory.js";
 import { getJobStatus } from "../queue/submissionWorker.js";
+import { validateBody, validateParams } from "../middleware/validation.js";
 
 const router = Router();
 
@@ -28,7 +28,7 @@ router.post(
       throw new UnauthorizedError("Please log in to submit solutions");
     }
 
-    const { questId, content } = req.validatedBody as z.infer<typeof submissionSchema>;
+    const { questId, content } = req.validated!.body as z.infer<typeof submissionSchema>;
 
     const quest = await prisma.quest.findUnique({ where: { id: questId } });
 
@@ -86,13 +86,13 @@ router.post(
 
 router.get(
   "/:id",
-  validateParams(z.object({ id: z.coerce.number().int().positive() })),
+  validateParams(z.object({ id: z.coerce.number().int() })),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to view submissions");
     }
 
-    const { id: submissionId } = req.validatedParams as { id: number };
+    const submissionId = (req.validated!.params as { id: number }).id;
 
     const submission = await (prisma as any).submission.findUnique({
       where: { id: submissionId },
@@ -121,21 +121,13 @@ router.get(
 
 router.get(
   "/:id/job/:jobId",
-  validateParams(
-    z.object({
-      id: z.coerce.number().int().positive(),
-      jobId: z.string().min(1),
-    })
-  ),
+  validateParams(z.object({ id: z.coerce.number().int(), jobId: z.string().min(1) })),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to view job status");
     }
 
-    const { id: submissionId, jobId } = req.validatedParams as {
-      id: number;
-      jobId: string;
-    };
+    const { id: submissionId, jobId } = req.validated!.params as { id: number; jobId: string };
 
     const submission = await (prisma as any).submission.findUnique({
       where: { id: submissionId },

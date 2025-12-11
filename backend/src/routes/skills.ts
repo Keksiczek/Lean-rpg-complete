@@ -6,6 +6,7 @@ import { validateParams } from "../middleware/validation.js";
 import { skillTreeService } from "../services/skillTreeService.js";
 import { skillUnlockService } from "../services/skillUnlockService.js";
 import { progressionService } from "../services/progressionService.js";
+import { validateParams } from "../middleware/validation.js";
 
 const router = Router();
 
@@ -107,7 +108,7 @@ router.post(
       throw new UnauthorizedError();
     }
 
-    const { skillId } = req.validatedParams as z.infer<typeof skillIdParamSchema>;
+    const { skillId } = req.validated!.params as { skillId: number };
     await skillTreeService.unlockSkill(req.user.userId, skillId);
     const skills = await skillTreeService.getUserSkills(req.user.userId);
     return res.status(201).json(skills);

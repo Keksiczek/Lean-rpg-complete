@@ -61,7 +61,7 @@ router.put(
       throw new UnauthorizedError();
     }
 
-    const { name } = req.validatedBody as z.infer<typeof updateUserSchema>;
+    const { name } = req.validated!.body as z.infer<typeof updateUserSchema>;
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user.userId },
