@@ -9,10 +9,11 @@ import { getQueueStats } from "../queue/queueFactory.js";
 
 const router = Router();
 
-type SubsystemStatus = "healthy" | "degraded" | "unhealthy";
+type ConnectionStatus = "connected" | "error";
+type OverallStatus = "healthy" | "degraded" | "unhealthy";
 
-interface HealthSubsystem {
-  status: "connected" | "error";
+interface SubsystemHealth {
+  status: ConnectionStatus;
   latency_ms: number;
   error?: string;
 }
@@ -24,11 +25,7 @@ interface QueueHealth {
   failed_jobs: number;
 }
 
-const measureLatency = async (fn: () => Promise<void>): Promise<{
-  status: "connected" | "error";
-  latency_ms: number;
-  error?: string;
-}> => {
+const measureLatency = async (fn: () => Promise<void>): Promise<SubsystemHealth> => {
   const start = performance.now();
   try {
     await fn();
@@ -49,33 +46,14 @@ function getMemoryUsage() {
     rss_mb: Math.round(usage.rss / 1024 / 1024),
     heap_mb: Math.round(usage.heapTotal / 1024 / 1024),
   };
-  memory: {
-    used_mb: number;
-    rss_mb: number;
-    heap_mb: number;
-  };
-  uptime_seconds: number;
 }
 
-async function checkDatabase() {
-  const start = performance.now();
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    const latency_ms = Math.round(performance.now() - start);
-    return { status: "connected" as const, latency_ms };
-  } catch (error) {
-    logger.error("Healthcheck database failed", { context: "health", error });
-    return { status: "error" as const, latency_ms: Math.round(performance.now() - start) };
-  }
-}
+router.get("/health", async (req: Request, res: Response) => {
+  const requestId = (req as Request & { requestId?: string }).requestId;
 
-async function checkRedis() {
-  const start = performance.now();
   try {
-    const [database, redisStatus] = await Promise.all([
-      measureLatency(() => prisma.$queryRaw`SELECT 1` as any),
-      measureLatency(() => redis.ping() as any),
-    ]);
+    const database = await measureLatency(() => prisma.$queryRaw`SELECT 1` as any);
+    const redisStatus = await measureLatency(() => redis.ping() as any);
 
     let queue: QueueHealth = {
       status: "stopped",
@@ -93,22 +71,19 @@ async function checkRedis() {
         failed_jobs: stats.summary.failed,
       };
     } catch (error) {
-      logger.error("Healthcheck queue stats failed", {
-        context: "health",
-        error,
-        requestId,
-      });
+      logger.error("Queue stats failed", { context: "health", error, requestId });
     }
 
     const geminiCircuit = geminiService.getCircuitBreakerState();
-    const memory = getMemoryUsage();
-    const gemini: { circuit_breaker: string; failures: number; last_failure: Date | null } = {
+    const gemini = {
       circuit_breaker: geminiCircuit.state.toUpperCase(),
       failures: geminiCircuit.failureCount,
       last_failure: geminiCircuit.lastFailure,
     };
 
-    const subsystemStatuses: SubsystemStatus[] = [
+    const memory = getMemoryUsage();
+
+    const subsystemStatuses: OverallStatus[] = [
       database.status === "error" ? "unhealthy" : "healthy",
       redisStatus.status === "error" ? "unhealthy" : "healthy",
       gemini.circuit_breaker === "OPEN" ? "degraded" : "healthy",
@@ -135,11 +110,7 @@ async function checkRedis() {
 
     res.status(overallStatus === "unhealthy" ? 503 : 200).json(payload);
   } catch (error) {
-    logger.error("Healthcheck fatal error", {
-      context: "health",
-      error,
-      requestId,
-    });
+    logger.error("Health check fatal error", { context: "health", error, requestId });
     res.status(503).json({
       status: "unhealthy",
       timestamp: new Date().toISOString(),
