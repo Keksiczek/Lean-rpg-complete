@@ -6,13 +6,19 @@ import { useAuditStore } from "@/src/store/auditStore";
 import { AuditCanvas } from "./AuditCanvas";
 import { AuditCategorization } from "./AuditCategorization";
 import { AuditResults } from "./AuditResults";
+import { AuditSceneSelector } from "./AuditSceneSelector";
 
 interface AuditGameProps {
-  scene: AuditScene;
+  scene: AuditScene | null;
+  onSelectScene: (scene: AuditScene) => void;
   onComplete: () => void;
 }
 
-export const AuditGame: React.FC<AuditGameProps> = ({ scene, onComplete }) => {
+export const AuditGame: React.FC<AuditGameProps> = ({
+  scene,
+  onSelectScene,
+  onComplete,
+}) => {
   const status = useAuditStore((state) => state.status);
   const foundProblems = useAuditStore((state) => state.foundProblems);
   const timeRemaining = useAuditStore((state) => state.timeRemaining);
@@ -22,6 +28,7 @@ export const AuditGame: React.FC<AuditGameProps> = ({ scene, onComplete }) => {
   const resetAudit = useAuditStore((state) => state.resetAudit);
 
   useEffect(() => {
+    if (!scene) return;
     startAudit(scene);
   }, [scene, startAudit]);
 
@@ -41,6 +48,10 @@ export const AuditGame: React.FC<AuditGameProps> = ({ scene, onComplete }) => {
   useEffect(() => {
     return () => resetAudit();
   }, [resetAudit]);
+
+  if (!scene) {
+    return <AuditSceneSelector onSelectScene={onSelectScene} />;
+  }
 
   if (status === "finished") {
     return (
