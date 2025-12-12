@@ -1,19 +1,20 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import type { AuditScene } from '@/types/audit';
-import { AuditGame } from '@/src/components/AuditGame';
+import { AuditGame } from '@/src/components/AuditGame'
+import { TenantProvider } from '@/src/contexts/TenantProvider'
 
-export default function FiveSAuditMiniGamePage() {
-  const [selectedScene, setSelectedScene] = useState<AuditScene | null>(null);
+const DEFAULT_TENANT = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? null
 
+export default function GembaMiniGamePage() {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <AuditGame
-        scene={selectedScene}
-        onSelectScene={(scene) => setSelectedScene(scene)}
-        onComplete={() => setSelectedScene(null)}
-      />
-    </div>
-  );
+    <TenantProvider initialSlug={DEFAULT_TENANT ?? undefined}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Gemba 5S Mini-game</h1>
+          <p className="text-gray-600">Identify and categorize issues on the shop floor.</p>
+        </div>
+        <AuditGame />
+      </div>
+    </TenantProvider>
+  )
 }
