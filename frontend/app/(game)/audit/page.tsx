@@ -1,19 +1,20 @@
 'use client'
 
-import { useState } from 'react'
-import type { AuditScene } from '@/types/audit'
 import { AuditGame } from '@/src/components/AuditGame'
+import { TenantProvider } from '@/src/contexts/TenantProvider'
+
+const DEFAULT_TENANT = process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? null
 
 export default function AuditPage() {
-  const [scene, setScene] = useState<AuditScene | null>(null)
-
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">5S Audit</h1>
-        <p className="text-gray-600">Learn and practice 5S methodology</p>
+    <TenantProvider initialSlug={DEFAULT_TENANT ?? undefined}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">5S Audit</h1>
+          <p className="text-gray-600">Learn and practice 5S methodology</p>
+        </div>
+        <AuditGame />
       </div>
-      <AuditGame scene={scene} onSelectScene={setScene} onComplete={() => setScene(null)} />
-    </div>
+    </TenantProvider>
   )
 }
