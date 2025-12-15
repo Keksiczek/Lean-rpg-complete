@@ -4,16 +4,7 @@ import { performance } from "perf_hooks";
 import prisma from "../lib/prisma.js";
 import { getRedis } from "../lib/redis.js";
 import logger from "../lib/logger.js";
-import { geminiService } from "../services/GeminiService.js";
 import { getQueueStats } from "../queue/queueFactory.js";
-import type {
-  GeminiHealth,
-  HealthPayload,
-  MemoryUsageMb,
-  OverallStatus,
-  QueueHealth,
-  SubsystemHealth,
-} from "../types/health.js";
 
 const router = Router();
 
@@ -28,15 +19,17 @@ const measureLatency = async (fn: () => Promise<void>): Promise<SubsystemHealth>
       latency_ms: performance.now() - start,
       error: error instanceof Error ? error.message : String(error),
     };
-  }
-};
-
-function getMemoryUsage(): MemoryUsageMb {
-  const usage = process.memoryUsage();
-  return {
-    used_mb: Math.round(usage.heapUsed / 1024 / 1024),
-    rss_mb: Math.round(usage.rss / 1024 / 1024),
-    heap_mb: Math.round(usage.heapTotal / 1024 / 1024),
+    uptime: number;
+    gemini_circuit: string;
+    gemini_failures: number;
+    gemini_last_failure: Date | null;
+    hostname: string;
+    queue_stats?: {
+      waiting: number;
+      active: number;
+      completed: number;
+      failed: number;
+    };
   };
 }
 
@@ -78,11 +71,18 @@ router.get("/health", async (req: Request, res: Response) => {
 
     const memory = getMemoryUsage();
 
-    const subsystemStatuses: OverallStatus[] = [
-      database.status === "error" ? "unhealthy" : "healthy",
-      redisStatus.status === "error" ? "unhealthy" : "healthy",
-      gemini.circuit_breaker === "OPEN" ? "degraded" : "healthy",
-    ];
+    const circuitState = geminiService.getCircuitBreakerState();
+    let queueStats: HealthResponse["details"]["queue_stats"];
+    try {
+      const stats = await getQueueStats();
+      queueStats = stats.summary;
+    } catch (error) {
+      logger.error("Healthcheck queue stats failed", {
+        context: "health",
+        error,
+        requestId,
+      });
+    }
 
     const overallStatus = subsystemStatuses.includes("unhealthy")
       ? "unhealthy"
@@ -100,7 +100,20 @@ router.get("/health", async (req: Request, res: Response) => {
       memory,
       uptime_seconds: Math.floor(process.uptime()),
       requestId,
-      hostname: os.hostname(),
+      details: {
+        database: dbStatus,
+        redis: redisStatus,
+        memory: {
+          used: `${memUsed}MB`,
+          rss: `${memRss}MB`,
+        },
+        uptime: Math.floor(process.uptime()),
+        gemini_circuit: circuitState.state,
+        gemini_failures: circuitState.failureCount,
+        gemini_last_failure: circuitState.lastFailure,
+        hostname: os.hostname(),
+        queue_stats: queueStats,
+      },
     };
 
     res.status(overallStatus === "unhealthy" ? 503 : 200).json(payload);

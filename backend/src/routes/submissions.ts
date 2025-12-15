@@ -8,7 +8,6 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../middleware/errors.js";
-import { validateBody, validateParams } from "../middleware/validation.js";
 import { enqueueSubmissionAnalysis } from "../queue/queueFactory.js";
 import { getJobStatus } from "../queue/submissionWorker.js";
 
@@ -120,13 +119,17 @@ router.get(
 
 router.get(
   "/:id/job/:jobId",
-  validateParams(z.object({ id: z.coerce.number().int(), jobId: z.string().min(1) })),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to view job status");
     }
 
-    const { id: submissionId, jobId } = req.validated!.params as { id: number; jobId: string };
+    const submissionId = Number(req.params.id);
+    if (Number.isNaN(submissionId)) {
+      throw new ValidationError("Invalid submission ID format", {
+        submissionId: req.params.id,
+      });
+    }
 
     const submission = await (prisma as any).submission.findUnique({
       where: { id: submissionId },
@@ -145,10 +148,10 @@ router.get(
       );
     }
 
-    const jobStatus = await getJobStatus(jobId);
+    const jobStatus = await getJobStatus(req.params.jobId);
 
     if (!jobStatus) {
-      throw new NotFoundError(`Job #${jobId}`);
+      throw new NotFoundError(`Job #${req.params.jobId}`);
     }
 
     return res.json({ job: jobStatus });
