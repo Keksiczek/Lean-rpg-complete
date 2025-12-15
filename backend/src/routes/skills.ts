@@ -1,0 +1,109 @@
+import { Request, Response, Router } from "express";
+import { z } from "zod";
+import { asyncHandler } from "../middleware/errorHandler.js";
+import { UnauthorizedError, ValidationError } from "../middleware/errors.js";
+import { validateParams } from "../middleware/validation.js";
+import { skillTreeService } from "../services/skillTreeService.js";
+import { skillUnlockService } from "../services/skillUnlockService.js";
+import { progressionService } from "../services/progressionService.js";
+
+const router = Router();
+
+const skillIdParamSchema = z.object({ skillId: z.coerce.number().int().positive() });
+
+router.get(
+  "/tree",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const skills = await skillTreeService.getSkillTree(req.user.userId);
+    return res.json(skills);
+  }),
+);
+
+router.get(
+  "/my-skills",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const progression = await progressionService.ensureProgression(req.user.userId);
+    const skills = await skillTreeService.getUserSkills(req.user.userId);
+
+    return res.json({ progression, skills });
+  }),
+);
+
+router.patch(
+  "/:skillId/activate",
+  validateParams(skillIdParamSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const { skillId } = req.validated!.params as { skillId: number };
+    const updated = await skillTreeService.activateSkill(req.user.userId, skillId);
+    return res.json(updated);
+  }),
+);
+
+router.post(
+  "/:skillId/deactivate",
+  validateParams(skillIdParamSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const { skillId } = req.validated!.params as { skillId: number };
+    const updated = await skillTreeService.deactivateSkill(req.user.userId, skillId);
+    return res.json(updated);
+  }),
+);
+
+router.get(
+  "/unlock-status",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const status = await skillUnlockService.getUnlockStatus(req.user.userId);
+    return res.json(status);
+  }),
+);
+
+router.get(
+  "/:skillId/conditions",
+  validateParams(skillIdParamSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const { skillId } = req.validated!.params as { skillId: number };
+    const result = await skillUnlockService.meetsUnlockConditions(req.user.userId, skillId);
+    return res.json(result);
+  }),
+);
+
+router.post(
+  "/:skillId/unlock",
+  validateParams(skillIdParamSchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError();
+    }
+
+    const { skillId } = req.validated!.params as { skillId: number };
+    await skillTreeService.unlockSkill(req.user.userId, skillId);
+    const skills = await skillTreeService.getUserSkills(req.user.userId);
+    return res.status(201).json(skills);
+  }),
+);
+
+export default router;

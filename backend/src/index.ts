@@ -18,16 +18,32 @@ import areaRoutes from "./routes/areas.js";
 import healthRouter from "./routes/health.js";
 import jobsRouter from "./routes/jobs.js";
 
-const app = express();
 const PORT = config.app.port;
 const HOST = config.app.host;
 
-if (config.logging.enableHttpLogs) {
-  app.use(requestLogger);
-}
+async function startServer() {
+  try {
+    const redis = getRedis();
+    await redis.ping();
+    logger.info({ message: "Redis connected" });
 
-app.use(cors({ origin: config.cors.origin }));
-app.use(express.json());
+    await startSubmissionWorker();
+    logger.info("Submission worker started");
+
+    const server = app.listen(PORT, HOST, () => {
+      logger.info({
+        message: "Server started",
+        port: PORT,
+        host: HOST,
+        environment: config.env,
+      });
+    });
+
+    const shutdown = async (signal: string) => {
+      logger.info({
+        message: "shutdown_initiated",
+        signal,
+      });
 
 // Public routes
 app.use("/auth", authRoutes);
@@ -45,15 +61,12 @@ app.use("/api/users", verifyToken, userRoutes);
 app.use("/api/areas", verifyToken, areaRoutes);
 app.use("/api/jobs", verifyToken, jobsRouter);
 
-app.use((req, res) => {
-  res.status(404).json({
-    error: "Not found",
-    code: "NOT_FOUND",
-    path: req.path,
-  });
-});
+        await closeQueue();
+        await closeRedis();
 
-app.use(errorHandler);
+        logger.info("Shutdown complete");
+        process.exit(0);
+      });
 
 async function startServer() {
   try {

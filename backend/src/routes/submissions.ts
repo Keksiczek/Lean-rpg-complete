@@ -7,7 +7,6 @@ import {
   HttpError,
   NotFoundError,
   UnauthorizedError,
-  ValidationError,
 } from "../middleware/errors.js";
 import { enqueueSubmissionAnalysis } from "../queue/queueFactory.js";
 import { getJobStatus } from "../queue/submissionWorker.js";
@@ -21,28 +20,13 @@ const submissionSchema = z.object({
 
 router.post(
   "/",
+  validateBody(submissionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to submit solutions");
     }
 
-    let parsedData;
-    try {
-      parsedData = submissionSchema.parse(req.body);
-    } catch (validationErr) {
-      if (validationErr instanceof z.ZodError) {
-        throw new ValidationError("Invalid submission format", {
-          issues: validationErr.issues.map((issue) => ({
-            path: issue.path.join("."),
-            message: issue.message,
-          })),
-        });
-      }
-
-      throw validationErr;
-    }
-
-    const { questId, content } = parsedData;
+    const { questId, content } = req.validated!.body as z.infer<typeof submissionSchema>;
 
     const quest = await prisma.quest.findUnique({ where: { id: questId } });
 
@@ -100,17 +84,13 @@ router.post(
 
 router.get(
   "/:id",
+  validateParams(z.object({ id: z.coerce.number().int() })),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to view submissions");
     }
 
-    const submissionId = Number(req.params.id);
-    if (Number.isNaN(submissionId)) {
-      throw new ValidationError("Invalid submission ID format", {
-        submissionId: req.params.id,
-      });
-    }
+    const submissionId = (req.validated!.params as { id: number }).id;
 
     const submission = await (prisma as any).submission.findUnique({
       where: { id: submissionId },
