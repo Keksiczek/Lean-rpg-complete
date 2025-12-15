@@ -1,22 +1,27 @@
-# syntax=docker/dockerfile:1
+FROM node:18-alpine
 
-FROM node:20 AS builder
 WORKDIR /app
+
+# Copy package files
 COPY package*.json ./
-RUN npm install
-COPY prisma ./prisma
 COPY tsconfig.json ./
-COPY src ./src
-RUN npm run build
-RUN npx prisma generate
-RUN npm prune --production
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/dist ./dist
-COPY package*.json ./
+# Install dependencies
+RUN npm ci
+
+# Copy source and prisma
+COPY src ./src
+COPY prisma ./prisma
+
+# Generate Prisma client and build TypeScript
+RUN npm run prisma:generate || true
+RUN npm run build
+
+# Remove dev dependencies
+RUN npm ci --only=production --omit=dev
+
 EXPOSE 4000
-CMD ["node", "dist/index.js"]
+
+ENV NODE_ENV=production
+
+CMD ["sh", "-c", "npm run prisma:migrate -- --skip-generate && node dist/index.js"]

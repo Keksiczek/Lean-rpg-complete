@@ -7,9 +7,9 @@ import {
   HttpError,
   NotFoundError,
   UnauthorizedError,
-  ValidationError,
 } from "../middleware/errors.js";
-import { enqueueGeminiAnalysisJob } from "../queue/geminiJobs.js";
+import { enqueueSubmissionAnalysis } from "../queue/queueFactory.js";
+import { getJobStatus } from "../queue/submissionWorker.js";
 
 const router = Router();
 
@@ -20,28 +20,13 @@ const submissionSchema = z.object({
 
 router.post(
   "/",
+  validateBody(submissionSchema),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to submit solutions");
     }
 
-    let parsedData;
-    try {
-      parsedData = submissionSchema.parse(req.body);
-    } catch (validationErr) {
-      if (validationErr instanceof z.ZodError) {
-        throw new ValidationError("Invalid submission format", {
-          issues: validationErr.issues.map((issue) => ({
-            path: issue.path.join("."),
-            message: issue.message,
-          })),
-        });
-      }
-
-      throw validationErr;
-    }
-
-    const { questId, content } = parsedData;
+    const { questId, content } = req.validated!.body as z.infer<typeof submissionSchema>;
 
     const quest = await prisma.quest.findUnique({ where: { id: questId } });
 
@@ -61,15 +46,31 @@ router.post(
         questId,
         content,
         userId: req.user.userId,
-        status: "pending_analysis",
+        status: "queued",
       },
     });
 
-    let job;
+    // ASYNC: Enqueue job instead of processing synchronously
     try {
-      job = await enqueueGeminiAnalysisJob({
+      const job = await enqueueSubmissionAnalysis({
         submissionId: submission.id,
         requestId: req.requestId,
+        userId: req.user.userId,
+        questId: submission.questId,
+        metadata: {
+          enqueuedAt: new Date().toISOString(),
+        },
+      });
+
+      // Return 202 Accepted with job info
+      return res.status(202).json({
+        success: true,
+        submissionId: submission.id,
+        status: submission.status,
+        jobId: job.id,
+        message: "Submission queued for analysis",
+        statusUrl: `/api/submissions/${submission.id}`,
+        jobStatusUrl: `/api/submissions/${submission.id}/job/${job.id}`,
       });
     } catch (queueErr) {
       throw new HttpError(
@@ -78,31 +79,18 @@ router.post(
         "QUEUE_UNAVAILABLE"
       );
     }
-
-    return res.status(202).json({
-      success: true,
-      submissionId: submission.id,
-      jobId: job.id,
-      status: submission.status,
-      pollUrl: `/api/submissions/${submission.id}`,
-      message: "Submission received. Analysis will begin shortly.",
-    });
   })
 );
 
 router.get(
   "/:id",
+  validateParams(z.object({ id: z.coerce.number().int() })),
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new UnauthorizedError("Please log in to view submissions");
     }
 
-    const submissionId = Number(req.params.id);
-    if (Number.isNaN(submissionId)) {
-      throw new ValidationError("Invalid submission ID format", {
-        submissionId: req.params.id,
-      });
-    }
+    const submissionId = (req.validated!.params as { id: number }).id;
 
     const submission = await (prisma as any).submission.findUnique({
       where: { id: submissionId },
@@ -126,6 +114,47 @@ router.get(
     }
 
     return res.json(submission);
+  })
+);
+
+router.get(
+  "/:id/job/:jobId",
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new UnauthorizedError("Please log in to view job status");
+    }
+
+    const submissionId = Number(req.params.id);
+    if (Number.isNaN(submissionId)) {
+      throw new ValidationError("Invalid submission ID format", {
+        submissionId: req.params.id,
+      });
+    }
+
+    const submission = await (prisma as any).submission.findUnique({
+      where: { id: submissionId },
+    });
+
+    if (!submission) {
+      throw new NotFoundError("Submission");
+    }
+
+    const isOwner = submission.userId === req.user.userId;
+    const isElevated = req.user.role === "admin" || req.user.role === "ci";
+
+    if (!isOwner && !isElevated) {
+      throw new ForbiddenError(
+        "You do not have permission to view this submission job status."
+      );
+    }
+
+    const jobStatus = await getJobStatus(req.params.jobId);
+
+    if (!jobStatus) {
+      throw new NotFoundError(`Job #${req.params.jobId}`);
+    }
+
+    return res.json({ job: jobStatus });
   })
 );
 

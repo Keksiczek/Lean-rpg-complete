@@ -28,6 +28,222 @@ From the `frontend/` directory:
 - `npm run dev` – start the Next.js dev server
 - `npm run lint` – lint frontend code
 
+## Gamification System
+
+Lean_RPG includes badges, achievements, and multiple leaderboard views to reward consistent play.
+
+### Features
+
+- **Badges**: 21+ badge types across rarity tiers, unlocked via XP thresholds, streaks, or leaderboard ranks. Many grant bonus XP when earned.
+- **Achievements**: 15 tracked milestones covering audits, Ishikawa sessions, streaks, and tier unlocks. Achievements can also award badges and XP.
+- **Leaderboards**: Global rankings by XP, skill-specific leaderboards, trending players (XP/day), and player-vs-player comparison data.
+
+### API Endpoints
+
+```
+# Badges
+GET /api/gamification/badges
+POST /api/gamification/badges/unlock
+
+# Achievements
+GET /api/gamification/achievements
+
+# Leaderboards
+GET /api/gamification/leaderboard/by-skill/:skillCode
+GET /api/gamification/leaderboard/trending
+GET /api/gamification/players/:id/compare/:otherId
+```
+
+### Mini-Game Integration
+
+After completing a 5S audit, Ishikawa analysis, or Gemba quest submission, the server automatically:
+
+1. Awards XP based on performance.
+2. Updates relevant achievement progress.
+3. Checks and unlocks any new badges.
+4. Refreshes leaderboard stats so rankings stay current.
+
+## 🐳 Docker Setup (Development)
+
+### Prerequisites
+- Docker & Docker Compose installed
+
+### Quick Start with Docker
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Keksiczek/Lean_RPG.git
+   cd Lean_RPG
+   ```
+2. **Create environment file**
+   ```bash
+   cp .env.docker.example .env
+   ```
+   (Edit `.env` if you want to override the defaults.)
+3. **Start all services**
+   ```bash
+   docker-compose up -d
+   ```
+   This starts:
+   - PostgreSQL on `localhost:5432`
+   - Redis on `localhost:6379`
+   - Backend API on `localhost:4000`
+4. **Wait for services to be healthy**
+   ```bash
+   docker-compose ps
+   ```
+   All services should show `healthy`.
+5. **Initialize database**
+   ```bash
+   docker-compose exec backend npm run prisma:migrate
+   docker-compose exec backend npm run prisma:seed
+   ```
+6. **Verify the setup**
+   ```bash
+   curl http://localhost:4000/health
+   ```
+   Expected response (status 200):
+   ```json
+   {
+     "status": "ok",
+     "details": {
+       "database": "connected",
+       "redis": "connected",
+       "memory": { "used": "...", "rss": "..." },
+       "uptime": 0,
+       "gemini_circuit": "closed",
+       "gemini_failures": 0,
+       "gemini_last_failure": null,
+       "hostname": "..."
+     }
+   }
+   ```
+
+### Useful Docker Commands
+
+- Start services: `docker-compose up -d`
+- Stop services: `docker-compose down`
+- Stop and remove volumes (⚠️ deletes data): `docker-compose down -v`
+- View logs (all): `docker-compose logs -f`
+- View logs (single service): `docker-compose logs -f backend` (or `postgres`, `redis`)
+- Run Prisma migration: `docker-compose exec backend npm run prisma:migrate`
+- Open shell in backend: `docker-compose exec backend /bin/sh`
+
+## 🚀 Production Deployment
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL 14+ (SQLite suitable only for small demos)
+- Required environment variables configured
+
+### Environment Variables
+
+```bash
+# backend/.env.production
+DATABASE_URL=postgresql://user:password@host:5432/lean_rpg_prod
+NODE_ENV=production
+JWT_SECRET=your-secret-key-here
+LOG_LEVEL=info
+```
+
+### Database Migration
+
+1. **Back up the current database** (for SQLite, copy the file):
+   ```bash
+   cp data.db data.db.backup
+   ```
+2. **Run migrations** (required after the gamification update):
+   ```bash
+   cd backend
+   npx prisma migrate deploy
+   ```
+3. **Seed badges and achievements** (run once per environment):
+   ```bash
+   npx prisma db seed
+   ```
+4. **Verify schema**:
+   ```bash
+   npx prisma studio
+   ```
+
+### Deployment Steps
+
+1. **Build backend**
+   ```bash
+   cd backend
+   npm run build
+   npm run prisma:migrate
+   ```
+2. **Build frontend**
+   ```bash
+   cd ../frontend
+   npm run build
+   ```
+3. **Start services**
+   ```bash
+   cd ../backend && npm start
+   cd ../frontend && npm start
+   ```
+
+### Monitoring Gamification
+
+- Check logs for `Badge unlocked` and `Achievement progress updated` to confirm hooks fire.
+- Watch for `Failed to fetch leaderboard` errors to catch data issues early.
+
+### Rollback Plan
+
+If deployment fails:
+
+1. Stop services.
+2. Restore database backup (e.g., `cp data.db.backup data.db`).
+3. Restart backend and frontend.
+
+### Performance Considerations
+
+- Cache leaderboard queries (e.g., Redis) for 5 minutes if traffic is high.
+- Run badge/achievement checks asynchronously to keep responses snappy.
+- Ensure Prisma indexes in `schema.prisma` remain in sync after migrations.
+
+### Known Limitations
+
+- Player comparison data is updated on-demand and can be slightly stale.
+- Trending leaderboard only includes activity from the last 7 days.
+- Skill leaderboard caps at 50 players by default (configurable).
+- Check PostgreSQL: `docker-compose exec postgres psql -U lean_rpg_user -d lean_rpg_dev`
+- Rebuild after code changes: `docker-compose build --no-cache && docker-compose up -d`
+
+### Port Mappings
+
+| Service    | Host Port | Container Port | Connection String             |
+|------------|-----------|----------------|------------------------------|
+| Backend    | 4000      | 4000           | http://localhost:4000        |
+| PostgreSQL | 5432      | 5432           | postgresql://localhost:5432  |
+| Redis      | 6379      | 6379           | redis://localhost:6379       |
+
+### Troubleshooting
+
+- **Database connection error**
+  ```bash
+  docker-compose ps postgres
+  docker-compose logs postgres
+  ```
+- **Redis connection error**
+  ```bash
+  docker-compose ps redis
+  docker-compose exec redis redis-cli ping
+  ```
+- **Backend not starting**
+  ```bash
+  docker-compose logs backend
+  ```
+  Ensure ports `4000`, `5432`, and `6379` are free.
+- **Full rebuild**
+  ```bash
+  docker-compose down -v
+  docker-compose up -d --build
+  ```
+
 ### Roadmap
 
 Progress and milestones are tracked in `CODEX_STATUS_ANALYSIS.md`.

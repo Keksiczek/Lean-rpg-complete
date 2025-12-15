@@ -7,11 +7,14 @@
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "vitest run",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev --name init",
     "prisma:seed": "node --loader ts-node/esm prisma/seed.ts",
+    "verify:seed": "node --loader ts-node/esm scripts/verify-seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "db:setup": "prisma migrate dev && npm run prisma:seed"
+    "db:setup": "npm run prisma:migrate && npm run prisma:seed"
   },
   "prisma": {
     "seed": "npm run prisma:seed"
@@ -20,10 +23,12 @@
     "@prisma/client": "^5.18.0",
     "axios": "file:vendor/axios",
     "bcryptjs": "^2.4.3",
+    "bull": "file:vendor/bull",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.0",
     "dotenv": "^16.4.5",
+    "ioredis": "file:vendor/ioredis",
     "jsonwebtoken": "^9.0.2",
     "p-retry": "file:vendor/p-retry",
     "uuid": "^9.0.1",
@@ -38,6 +43,7 @@
     "prisma": "^5.18.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^2.1.3"
   }
 }

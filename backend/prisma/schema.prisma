@@ -3,12 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
   id         Int         @id @default(autoincrement())
+  tenantId   String      @default("default-tenant")
   email      String      @unique
   password   String
   name       String
@@ -20,8 +21,21 @@ model User {
   userQuests UserQuest[]
   xpLogs     XpLog[]
   userSkills UserSkill[]
+  playerSkills PlayerSkill[]
+  skillProgression SkillProgression?
   audits     Audit[]
   submissions Submission[]
+  fiveSAudits FiveSAudit[]
+  problemAnalyses ProblemAnalysis[]
+  ishikawaHistory IshikawaHistory[]
+  userBadges       UserBadge[]
+  userAchievements UserAchievement[]
+  leaderboardStats LeaderboardStats?
+  comparisonsAsUser1 PlayerComparison[] @relation("Player1")
+  comparisonsAsUser2 PlayerComparison[] @relation("Player2")
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
 }
 
 model Area {
@@ -31,7 +45,70 @@ model Area {
   workstations   Workstation[]
   quests         Quest[]
   knowledgePacks KnowledgePack[]
-  auditTemplates AuditTemplate[]
+  auditTemplates LegacyAuditTemplate[]
+  fiveSSettings  FiveSSetting[]
+  fiveSAudits    FiveSAudit[]
+  problemSolvingChallenges ProblemSolvingChallenge[]
+}
+
+model ProblemSolvingChallenge {
+  id                  Int                @id @default(autoincrement())
+  title               String
+  description         String
+  context             String
+  areaId              Int
+  area                Area               @relation(fields: [areaId], references: [id])
+  difficulty          String
+  baseXp              Int
+  correctRootCauseId  Int
+  correctCategories   Json
+  possibleCauses      Json
+  correctSolution     String
+  status              String             @default("active")
+  analyses            ProblemAnalysis[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+}
+
+model ProblemAnalysis {
+  id                    Int                        @id @default(autoincrement())
+  userId                Int
+  user                  User                       @relation(fields: [userId], references: [id])
+  challengeId           Int
+  challenge             ProblemSolvingChallenge    @relation(fields: [challengeId], references: [id])
+  status                String                     @default("in_progress")
+  selectedCategories    Json?
+  causes                Json?
+  rootCauseId           Int?
+  rootCause             String?
+  proposedSolution      String?
+  solutionDetails       String?
+  causeCount            Int?
+  categoryCompleteness  Int?
+  rootCauseCorrect      Boolean?                   @default(false)
+  solutionQuality       String?
+  totalScore            Int?
+  aiFeedback            String?
+  categoryFeedback      Json?
+  improvements          String?
+  xpGain                Int                        @default(0)
+  pointsGain            Int                        @default(0)
+  badgeEarned           String?
+  startedAt             DateTime                   @default(now())
+  completedAt           DateTime?
+  timeSpent             Int?
+  createdAt             DateTime                   @default(now())
+  ishikawaHistory       IshikawaHistory[]
+}
+
+model IshikawaHistory {
+  id           Int             @id @default(autoincrement())
+  userId       Int
+  user         User            @relation(fields: [userId], references: [id])
+  analysisId   Int
+  analysis     ProblemAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  diagramJson  Json
+  solvedAt     DateTime        @default(now())
 }
 
 model Workstation {
@@ -44,48 +121,66 @@ model Workstation {
 }
 
 model Quest {
-  id          Int           @id @default(autoincrement())
-  title       String
-  description String
-  type        String
-  baseXp      Int           @default(10)
-  briefText   String?
-  difficulty  String        @default("easy")
-  leanConcept String?
-  isActive    Boolean       @default(true)
-  areaId      Int?
-  area        Area?         @relation(fields: [areaId], references: [id])
-  userQuests  UserQuest[]
-  options     QuestOption[]
-  submissions Submission[]
+  id           String       @id @default(cuid())
+  code         String       @unique
+  title        String
+  description  String       @db.Text
+  leanConcept  String
+  story        String       @db.Text
+  objectives   String
+  difficulty   String
+  xpReward     Int
+  timeEstimate Int
+  skillUnlock  String?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  areaId       Int?
+  area         Area?        @relation(fields: [areaId], references: [id])
+
+  userQuests   UserQuest[]
+  options      QuestOption[]
+  submissions  Submission[]
+
+  @@index([leanConcept])
+  @@index([difficulty])
 }
 
 model UserQuest {
-  id          Int          @id @default(autoincrement())
+  id          String       @id @default(cuid())
   userId      Int
-  questId     Int
-  status      String       @default("assigned")
-  assignedAt  DateTime     @default(now())
+  questId     String
+  status      String       @default("not_started")
+  xpEarned    Int          @default(0)
   completedAt DateTime?
-  user        User         @relation(fields: [userId], references: [id])
-  quest       Quest        @relation(fields: [questId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quest       Quest        @relation(fields: [questId], references: [id], onDelete: Cascade)
   submissions Submission[]
+
+  @@unique([userId, questId])
+  @@index([userId])
+  @@index([questId])
+  @@index([status])
 }
 
 model Submission {
   id            Int           @id @default(autoincrement())
   userId        Int
-  questId       Int
+  questId       String
   content       String
-  userQuestId   Int?
+  userQuestId   String?
   workstationId Int?
   textInput     String?
   imageUrl      String?
   aiFeedback    String?
   aiScore5s     String?
   aiRiskLevel   String?
-  xpGain        Int?
-  status        String        @default("pending_analysis")
+  xpGain        Int           @default(0)
+  // Status lifecycle: pending_review → queued → analyzing → evaluated/failed
+  status        String        @default("pending_review")
   createdAt     DateTime      @default(now())
   user          User          @relation(fields: [userId], references: [id])
   quest         Quest         @relation(fields: [questId], references: [id])
@@ -136,50 +231,438 @@ model UserSkill {
   @@unique([userId, skillId])
 }
 
+model SkillTreeNode {
+  id                Int       @id @default(autoincrement())
+  name              String    @unique
+  description       String
+  category          String
+  tier              Int
+  requiresXp        Int
+  icon              String?
+  color             String?
+  requiresSkills    Int[]     @default([])
+  unlockType        String
+  unlockData        Json?
+  shortTip          String?
+  learningResources String[]  @default([])
+  xpBonus           Int       @default(0)
+  pointsBonus       Int       @default(0)
+  badgeUnlock       String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  unlockedBy        PlayerSkill[]
+
+  @@index([tier])
+  @@index([category])
+  @@index([active])
+}
+
+model PlayerSkill {
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId       Int
+  skill         SkillTreeNode @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  level         Int           @default(1)
+  progress      Int           @default(0)
+  isUnlocked    Boolean       @default(false)
+  unlockedAt    DateTime?
+  isActive      Boolean       @default(false)
+  activatedAt   DateTime?
+  skillXp       Int           @default(0)
+  masteryLevel  String        @default("beginner")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([skillId])
+  @@index([isUnlocked])
+}
+
+model SkillProgression {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalXp             Int      @default(0)
+  currentTier         Int      @default(1)
+  unlockedSkillCount  Int      @default(0)
+  activeSkillCount    Int      @default(0)
+  lastLevelUp         DateTime?
+  tierUnlockedAt      Json?
+  currentGoal         String?
+  goalProgress        Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([currentTier])
+  @@index([totalXp])
+}
+
 model QuestOption {
   id       Int    @id @default(autoincrement())
-  questId  Int
+  questId  String
   title    String
   impact   String
   feedback String
   quest    Quest  @relation(fields: [questId], references: [id])
 }
 
-model AuditTemplate {
-  id     Int         @id @default(autoincrement())
+model LegacyAuditTemplate {
+  id     Int                @id @default(autoincrement())
   name   String
   type   String
   areaId Int?
-  items  AuditItem[]
-  audits Audit[]
-  area   Area?       @relation(fields: [areaId], references: [id])
+  items  LegacyAuditItem[]
+  audits LegacyAudit[]
+  area   Area?              @relation(fields: [areaId], references: [id])
+
+  @@map("LegacyAuditTemplate")
 }
 
-model AuditItem {
-  id         Int           @id @default(autoincrement())
+model LegacyAuditItem {
+  id         Int                   @id @default(autoincrement())
   templateId Int
   question   String
-  weight     Int           @default(1)
-  template   AuditTemplate @relation(fields: [templateId], references: [id])
-  results    AuditResult[]
+  weight     Int                   @default(1)
+  template   LegacyAuditTemplate   @relation(fields: [templateId], references: [id])
+  results    LegacyAuditResult[]
+
+  @@map("LegacyAuditItem")
 }
 
-model Audit {
-  id         Int           @id @default(autoincrement())
+model LegacyAudit {
+  id         Int                @id @default(autoincrement())
   userId     Int
   templateId Int
   score      Int?
-  results    AuditResult[]
-  createdAt  DateTime      @default(now())
-  user       User          @relation(fields: [userId], references: [id])
-  template   AuditTemplate @relation(fields: [templateId], references: [id])
+  results    LegacyAuditResult[]
+  createdAt  DateTime           @default(now())
+  user       User               @relation(fields: [userId], references: [id])
+  template   LegacyAuditTemplate @relation(fields: [templateId], references: [id])
+
+  @@map("LegacyAudit")
 }
 
-model AuditResult {
-  id      Int       @id @default(autoincrement())
+model LegacyAuditResult {
+  id      Int           @id @default(autoincrement())
   auditId Int
   itemId  Int
   score   Int
-  audit   Audit     @relation(fields: [auditId], references: [id])
-  item    AuditItem @relation(fields: [itemId], references: [id])
+  audit   LegacyAudit   @relation(fields: [auditId], references: [id])
+  item    LegacyAuditItem @relation(fields: [itemId], references: [id])
+
+  @@map("LegacyAuditResult")
+}
+
+model FiveSSetting {
+  id                  Int          @id @default(autoincrement())
+  name                String
+  areaId              Int
+  area                Area         @relation(fields: [areaId], references: [id])
+
+  sortCriteria        Json
+  orderCriteria       Json
+  shineCriteria       Json
+  standardizeCriteria Json
+  sustainCriteria     Json
+
+  maxScore            Int          @default(100)
+  passingScore        Int          @default(70)
+
+  timeLimit           Int
+  maxProblems         Int          @default(5)
+
+  audits              FiveSAudit[]
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+model FiveSAudit {
+  id                Int            @id @default(autoincrement())
+  userId            Int
+  user              User           @relation(fields: [userId], references: [id])
+
+  settingId         Int
+  setting           FiveSSetting   @relation(fields: [settingId], references: [id])
+
+  areaId            Int
+  area              Area           @relation(fields: [areaId], references: [id])
+
+  status            String         @default("in_progress")
+
+  sortScore         Int?
+  orderScore        Int?
+  shineScore        Int?
+  standardizeScore  Int?
+  sustainScore      Int?
+  totalScore        Int?
+
+  problemsFound     Json?
+
+  aiFeedback        String?
+  mainIssue         String?
+
+  xpGain            Int            @default(0)
+  pointsGain        Int            @default(0)
+  badgeEarned       String?
+
+  startedAt         DateTime       @default(now())
+  completedAt       DateTime?
+  timeSpent         Int?
+
+  createdAt         DateTime       @default(now())
+  problems          FiveSProblem[]
+}
+
+model FiveSProblem {
+  id          Int         @id @default(autoincrement())
+  auditId     Int
+  audit       FiveSAudit  @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  category    String
+  description String
+  position    String
+  screenshot  String?
+  severity    String
+
+  createdAt   DateTime    @default(now())
+}
+
+model Badge {
+  id              Int         @id @default(autoincrement())
+  code            String      @unique
+  name            String
+  description     String
+  icon            String?
+  color           String?
+  unlockType      String
+  unlockCondition Json
+  xpReward        Int         @default(0)
+  skillBonusId    Int?
+  titleUnlock     String?
+  rarity          String      @default("common")
+  tier            Int         @default(1)
+  active          Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  userBadges      UserBadge[]
+  achievements    Achievement[] @relation("AchievementBadge")
+
+  @@index([unlockType])
+  @@index([rarity])
+}
+
+model UserBadge {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId     Int
+  badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  unlockedAt  DateTime @default(now())
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, badgeId])
+  @@index([userId])
+  @@index([badgeId])
+}
+
+model Achievement {
+  id               Int                @id @default(autoincrement())
+  code             String             @unique
+  name             String
+  description      String
+  icon             String?
+  type             String
+  targetValue      Int
+  trackingField    String
+  xpReward         Int                @default(0)
+  badgeId          Int?
+  badge            Badge?             @relation("AchievementBadge", fields: [badgeId], references: [id], onDelete: SetNull)
+  difficulty       String             @default("easy")
+  category         String             @default("general")
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  userAchievements UserAchievement[]
+
+  @@index([category])
+  @@index([trackingField])
+}
+
+model UserAchievement {
+  id             Int           @id @default(autoincrement())
+  userId         Int
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId  Int
+  achievement    Achievement   @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  progress       Int           @default(0)
+  completedAt    DateTime?
+  notified       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([completedAt])
+}
+
+model LeaderboardStats {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  globalRank       Int?
+  globalRankChange Int      @default(0)
+  bestSkillRank    Int?
+  bestSkillCode    String?
+  totalAudits      Int      @default(0)
+  totalProblems    Int      @default(0)
+  questStreak      Int      @default(0)
+  maxStreak        Int      @default(0)
+  xpPerDay         Float    @default(0)
+  xpTrend          String   @default("stable")
+  lastUpdated      DateTime @default(now())
+
+  @@index([globalRank])
+  @@index([xpPerDay])
+}
+
+model PlayerComparison {
+  id              Int      @id @default(autoincrement())
+  userId1         Int
+  user1           User     @relation("Player1", fields: [userId1], references: [id], onDelete: Cascade)
+  userId2         Int
+  user2           User     @relation("Player2", fields: [userId2], references: [id], onDelete: Cascade)
+  xpDifference    Int
+  rankDifference  Int
+  skillsCommon    Int
+  skillsUser1Only Int
+  skillsUser2Only Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId1, userId2])
+  @@index([userId1])
+  @@index([userId2])
+}
+
+model Tenant {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  name               String
+  description        String?
+  language           String   @default("en")
+  locale             String   @default("en-US")
+  defaultTheme       String   @default("light")
+  leanMethodologies  String[] @default(["5S", "LPA", "Ishikawa"])
+  logoUrl            String?
+  primaryColor       String?
+  secondaryColor     String?
+  timezone           String   @default("Europe/Prague")
+  maxPlayers         Int      @default(1000)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users          User[]
+  factories      FactoryConfiguration[]
+  auditTemplates AuditTemplate[]
+  lpaTemplates   LPATemplate[]
+
+  @@index([slug])
+}
+
+model FactoryConfiguration {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name             String
+  description      String?
+  type             String   @default("production")
+
+  zones            Zone[]
+  workshops        Workshop[]
+  auditTemplates   AuditTemplate[]
+
+  defaultChecklist String[]
+  fiveS_SortItems  String[]
+  fiveS_SetLocations String[]
+  fiveS_ShineAreas String[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId])
+  @@unique([tenantId, name])
+}
+
+model Zone {
+  id        String   @id @default(cuid())
+  factoryId String
+  factory   FactoryConfiguration @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+
+  name      String
+  coordinates Json
+  status    String   @default("optimal")
+
+  workshops Workshop[]
+
+  @@index([factoryId])
+}
+
+model Workshop {
+  id             String   @id @default(cuid())
+  factoryId      String
+  factory        FactoryConfiguration @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+  zoneId         String?
+  zone           Zone?    @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+
+  name           String
+  description    String?
+  redTags        Int      @default(0)
+  activeTraining Int      @default(0)
+
+  @@index([factoryId])
+  @@index([zoneId])
+}
+
+model AuditTemplate {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  factoryId   String?
+  factory     FactoryConfiguration? @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+  difficulty  String
+  category    String
+  items       Json[]
+  xpReward    Int      @default(150)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([factoryId])
+}
+
+model LPATemplate {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  factoryId   String?
+  factory     FactoryConfiguration? @relation(fields: [factoryId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+  frequency   String
+  questions   Json[]
+  xpReward    Int      @default(100)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([factoryId])
 }
