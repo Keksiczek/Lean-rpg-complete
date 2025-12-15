@@ -16,7 +16,13 @@ import submissionRoutes from "./routes/submissions.js";
 import userRoutes from "./routes/users.js";
 import areaRoutes from "./routes/areas.js";
 import healthRouter from "./routes/health.js";
-import jobsRouter from "./routes/jobs.js";
+import { verifyToken } from "./middleware/auth.js";
+import { config } from "./config.js";
+import { requestLogger } from "./middleware/logger.js";
+import { errorHandler } from "./middleware/errorHandler.js";
+import logger from "./lib/logger.js";
+import { geminiService } from "./services/GeminiService.js";
+import { registerGeminiProcessor } from "./queue/geminiJobs.js";
 
 const PORT = config.app.port;
 const HOST = config.app.host;
@@ -127,4 +133,39 @@ async function startServer() {
 
 startServer();
 
-export default app;
+registerGeminiProcessor(geminiService);
+
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Not found",
+    code: "NOT_FOUND",
+    path: req.path,
+  });
+});
+
+app.use(errorHandler);
+
+app.listen(PORT, HOST, () => {
+  logger.info({
+    message: "Server started",
+    port: PORT,
+    host: HOST,
+    environment: config.env,
+  });
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error({
+    message: "Uncaught exception",
+    error: err.message,
+    stack: err.stack,
+  });
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error({
+    message: "Unhandled rejection",
+    error: String(reason),
+  });
+});

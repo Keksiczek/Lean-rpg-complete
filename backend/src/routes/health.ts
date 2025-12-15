@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import os from "os";
 import { performance } from "perf_hooks";
 import prisma from "../lib/prisma.js";
-import { getRedis } from "../lib/redis.js";
+import redis from "../lib/redis.js";
+import { geminiService } from "../services/GeminiService.js";
 import logger from "../lib/logger.js";
 import { getQueueStats } from "../queue/queueFactory.js";
 
@@ -84,11 +85,22 @@ router.get("/health", async (req: Request, res: Response) => {
       });
     }
 
-    const overallStatus = subsystemStatuses.includes("unhealthy")
-      ? "unhealthy"
-      : subsystemStatuses.includes("degraded")
-        ? "degraded"
-        : "healthy";
+    const memUsage = process.memoryUsage();
+    const memUsed = Math.round(memUsage.heapUsed / 1024 / 1024);
+    const memRss = Math.round(memUsage.rss / 1024 / 1024);
+
+    const circuitState = geminiService.getCircuitBreakerState();
+
+    let status: HealthStatus = "ok";
+    if (dbStatus === "error" && redisStatus === "error") {
+      status = "error";
+    } else if (
+      dbStatus === "error" ||
+      redisStatus === "error" ||
+      circuitState.state === "open"
+    ) {
+      status = "degraded";
+    }
 
     const payload: HealthPayload = {
       status: overallStatus,
