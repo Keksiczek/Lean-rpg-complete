@@ -54,6 +54,53 @@ GET /api/gamification/leaderboard/trending
 GET /api/gamification/players/:id/compare/:otherId
 ```
 
+### Platform APIs
+
+**Multi-Tenant API (`/api/tenant/*`)**
+
+- `GET /api/tenant` (requires tenant slug via header or query)
+- `GET /api/tenant/by-slug/:slug`
+- `PUT /api/tenant/settings`
+
+**Admin API (`/api/admin/*`)**
+
+- `GET /api/admin/stats`
+- `GET /api/admin/users?includeInactive=true`
+- `DELETE /api/admin/users/:id` (soft delete)
+- `POST /api/admin/users/:id/reactivate`
+- `PUT /api/admin/users/:id/role`
+- `GET /api/admin/users/export`
+- `GET /api/admin/quests`
+- `POST /api/admin/quests`
+- `PUT /api/admin/quests/:id`
+- `DELETE /api/admin/quests/:id`
+- `GET /api/admin/badges`
+- `POST /api/admin/badges`
+- `PUT /api/admin/badges/:id`
+- `DELETE /api/admin/badges/:id`
+- `GET /api/admin/achievements`
+- `POST /api/admin/achievements`
+- `PUT /api/admin/achievements/:id`
+- `DELETE /api/admin/achievements/:id`
+
+**AR Scanner API (`/api/ar/*`)**
+
+- `POST /api/ar/analyze`
+- `GET /api/ar/history`
+
+**AI Chatbot API (`/api/chat/*`)**
+
+- `POST /api/chat`
+- `GET /api/chat/history?sessionId=...`
+- `GET /api/chat/sessions`
+
+**Factory Map API (`/api/factory/*`)**
+
+- `GET /api/factory/areas`
+- `GET /api/factory/areas/:id`
+- `GET /api/factory/locations/:id`
+- `GET /api/factory/scan/:qrCode`
+
 ### Mini-Game Integration
 
 After completing a 5S audit, Ishikawa analysis, or Gemba quest submission, the server automatically:
