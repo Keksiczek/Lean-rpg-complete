@@ -22,6 +22,11 @@ import progressionRouter from "./routes/progression.js";
 import gamificationRouter from "./routes/gamification.js";
 import tenantRoutes from "./routes/tenants.js";
 import adminTenantRoutes from "./routes/admin/tenants.js";
+import tenantApiRoutes from "./routes/tenant.js";
+import adminRoutes from "./routes/admin.js";
+import arRoutes from "./routes/ar.js";
+import chatRoutes from "./routes/chat.js";
+import factoryRoutes from "./routes/factory.js";
 
 export function createApp() {
   const app = express();
@@ -43,9 +48,11 @@ export function createApp() {
 
   // Tenant-aware routes
   app.use("/api/tenants", tenantRoutes);
+  app.use("/api/tenant", tenantApiRoutes);
 
   // Admin routes
   app.use("/api/admin/tenants", verifyToken, adminCheck, adminTenantRoutes);
+  app.use("/api/admin", verifyToken, adminCheck, adminRoutes);
 
   // Protected routes
   app.use("/quests", verifyToken, questRoutes);
@@ -63,6 +70,9 @@ export function createApp() {
   app.use("/api/skills", verifyToken, skillRouter);
   app.use("/api/progression", verifyToken, progressionRouter);
   app.use("/api/gamification", verifyToken, gamificationRouter);
+  app.use("/api/ar", arRoutes);
+  app.use("/api/chat", chatRoutes);
+  app.use("/api/factory", verifyToken, factoryRoutes);
 
   app.use((req, res) => {
     res.status(404).json({

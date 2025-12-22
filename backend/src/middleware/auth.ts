@@ -9,6 +9,7 @@ declare module "express-serve-static-core" {
       userId: number;
       role: string;
       email?: string;
+      tenantId?: string;
     };
   }
 }
@@ -46,9 +47,38 @@ export function adminCheck(req: Request, res: Response, next: NextFunction) {
     return next(new HttpError("Missing token", 401, "UNAUTHORIZED"));
   }
 
-  if (req.user.role !== "admin") {
+  if (req.user.role !== "admin" && req.user.role !== "superadmin") {
     return next(new HttpError("Admin access required", 403, "FORBIDDEN"));
   }
 
   return next();
+}
+
+export function requireRole(roles: string[]) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new HttpError("Missing token", 401, "UNAUTHORIZED"));
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return next(new HttpError("Insufficient role permissions", 403, "FORBIDDEN"));
+    }
+
+    return next();
+  };
+}
+
+export function requireTenantFeature(feature: string) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.tenant) {
+      return next(new HttpError("Tenant context missing", 400, "TENANT_REQUIRED"));
+    }
+
+    const flags = req.tenant.featureFlags ?? [];
+    if (!flags.includes(feature)) {
+      return next(new HttpError("Feature not enabled for tenant", 403, "FEATURE_DISABLED"));
+    }
+
+    return next();
+  };
 }

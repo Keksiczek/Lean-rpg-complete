@@ -13,7 +13,7 @@ model User {
   email      String      @unique
   password   String
   name       String
-  role       String      @default("operator")
+  role       String      @default("user")
   totalXp    Int         @default(0)
   level      Int         @default(1)
   createdAt  DateTime    @default(now())
@@ -33,6 +33,8 @@ model User {
   leaderboardStats LeaderboardStats?
   comparisonsAsUser1 PlayerComparison[] @relation("Player1")
   comparisonsAsUser2 PlayerComparison[] @relation("Player2")
+  arScanResults ArScanResult[]
+  chatMessages  ChatMessage[]
   tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -135,6 +137,8 @@ model Quest {
   isActive     Boolean      @default(true)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+  tenantId     String?
+  tenant       Tenant?      @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   areaId       Int?
   area         Area?        @relation(fields: [areaId], references: [id])
 
@@ -144,6 +148,7 @@ model Quest {
 
   @@index([leanConcept])
   @@index([difficulty])
+  @@index([tenantId])
 }
 
 model UserQuest {
@@ -552,6 +557,10 @@ model Tenant {
   id                 String   @id @default(cuid())
   slug               String   @unique
   name               String
+  logo               String?
+  colors             Json?
+  featureFlags       String[] @default([])
+  settings           Json?
   description        String?
   language           String   @default("en")
   locale             String   @default("en-US")
@@ -569,8 +578,62 @@ model Tenant {
   factories      FactoryConfiguration[]
   auditTemplates AuditTemplate[]
   lpaTemplates   LPATemplate[]
+  factoryAreas   FactoryArea[]
+  quests         Quest[]
 
   @@index([slug])
+}
+
+model FactoryArea {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name     String
+  mapX     Int
+  mapY     Int
+  locations FactoryLocation[]
+
+  @@index([tenantId])
+}
+
+model FactoryLocation {
+  id           String   @id @default(cuid())
+  areaId       String
+  area         FactoryArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  name         String
+  qrCode       String   @unique
+  locationType String
+
+  @@index([areaId])
+  @@index([qrCode])
+}
+
+model ArScanResult {
+  id        String   @id @default(cuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  category  String
+  score     Int?
+  feedback  String?
+  issues    Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([category])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([userId])
 }
 
 model FactoryConfiguration {
