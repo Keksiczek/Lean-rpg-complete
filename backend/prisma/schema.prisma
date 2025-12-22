@@ -14,6 +14,7 @@ model User {
   password   String
   name       String
   role       String      @default("user")
+  isActive   Boolean     @default(true)
   totalXp    Int         @default(0)
   level      Int         @default(1)
   createdAt  DateTime    @default(now())
@@ -23,7 +24,7 @@ model User {
   userSkills UserSkill[]
   playerSkills PlayerSkill[]
   skillProgression SkillProgression?
-  audits     Audit[]
+  audits     LegacyAudit[]
   submissions Submission[]
   fiveSAudits FiveSAudit[]
   problemAnalyses ProblemAnalysis[]
@@ -648,6 +649,7 @@ model FactoryConfiguration {
   zones            Zone[]
   workshops        Workshop[]
   auditTemplates   AuditTemplate[]
+  lpaTemplates     LPATemplate[]
 
   defaultChecklist String[]
   fiveS_SortItems  String[]
