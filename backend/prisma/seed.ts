@@ -17,7 +17,7 @@ export type FactorySeed = {
 };
 
 const TENANT_SEED = {
-  slug: "magna-nymburk",
+  slug: "magna",
   name: "Magna Exteriors (Bohemia) s.r.o.",
   description: "Automotive plastic injection molding, assembly, and painting facility",
   language: "cs",
@@ -27,6 +27,17 @@ const TENANT_SEED = {
   secondaryColor: "#1F1F1F",
   leanMethodologies: ["5S", "LPA", "Safety"],
   logoUrl: "https://example.com/magna-logo.png",
+  logo: "https://example.com/magna-logo.png",
+  colors: {
+    primary: "#E31C23",
+    secondary: "#1F1F1F",
+    accent: "#F7B500",
+  },
+  featureFlags: ["ar_scanner", "lean_chatbot", "factory_map"],
+  settings: {
+    locale: "cs-CZ",
+    onboardingComplete: true,
+  },
 };
 
 const FACTORIES: FactorySeed[] = [
@@ -493,6 +504,44 @@ async function createLpaTemplates(tenantId: string) {
   }
 }
 
+async function createFactoryAreas(tenantId: string) {
+  const areas = [
+    { name: "Vstřikovna", mapX: 12, mapY: 18 },
+    { name: "Montáže", mapX: 48, mapY: 22 },
+    { name: "Lakovna", mapX: 65, mapY: 44 },
+    { name: "Logistika", mapX: 30, mapY: 62 },
+    { name: "Kvalita", mapX: 78, mapY: 12 },
+  ];
+
+  for (const area of areas) {
+    const createdArea = await prisma.factoryArea.create({
+      data: {
+        tenantId,
+        name: area.name,
+        mapX: area.mapX,
+        mapY: area.mapY,
+      },
+    });
+
+    await prisma.factoryLocation.createMany({
+      data: [
+        {
+          areaId: createdArea.id,
+          name: `${area.name} - Stanoviště 1`,
+          qrCode: `${createdArea.name.toLowerCase().replace(/\\s+/g, "-")}-1`,
+          locationType: "workstation",
+        },
+        {
+          areaId: createdArea.id,
+          name: `${area.name} - Stanoviště 2`,
+          qrCode: `${createdArea.name.toLowerCase().replace(/\\s+/g, "-")}-2`,
+          locationType: "workstation",
+        },
+      ],
+    });
+  }
+}
+
 export async function seedMagnaTenant() {
   console.log("🧹 Clearing existing tenants...");
   await prisma.tenant.deleteMany();
@@ -502,6 +551,9 @@ export async function seedMagnaTenant() {
 
   console.log("🏗️  Creating factories, zones, and workshops...");
   await createFactories(tenant.id);
+
+  console.log("🗺️  Creating factory map areas...");
+  await createFactoryAreas(tenant.id);
 
   console.log("🧾 Creating 5S audit templates...");
   await createAudits(tenant.id);
